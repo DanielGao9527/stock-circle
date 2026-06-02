@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/require-user";
+import { getCommentCountsForTargets } from "@/lib/comments/data";
 import { formatPositionChange } from "@/lib/portfolio/position-change";
 import { postTypeLabels, type PostType } from "@/lib/posts/types";
 import { ensureProfile } from "@/lib/profiles/ensure-profile";
@@ -57,6 +58,7 @@ type FeedItem =
       title: string | null;
       preview: string;
       symbols: string[];
+      commentCount: number;
     }
   | {
       id: string;
@@ -67,6 +69,7 @@ type FeedItem =
       href: string;
       title: string;
       items: PortfolioItemRow[];
+      commentCount: number;
     };
 
 function getPreview(content: string) {
@@ -186,6 +189,16 @@ export default async function Home() {
   }
 
   let snapshotItems = new Map<string, PortfolioItemRow[]>();
+  let postCommentCounts = new Map<string, number>();
+  let snapshotCommentCounts = new Map<string, number>();
+
+  if (postIds.length > 0) {
+    postCommentCounts = await getCommentCountsForTargets(supabase, "post", postIds);
+  }
+
+  if (snapshotIds.length > 0) {
+    snapshotCommentCounts = await getCommentCountsForTargets(supabase, "snapshot", snapshotIds);
+  }
 
   if (snapshotIds.length > 0) {
     const { data: itemData, error: itemError } = await supabase
@@ -217,6 +230,7 @@ export default async function Home() {
       title: post.title,
       preview: getPreview(post.content),
       symbols: postSymbols.get(post.id) ?? [],
+      commentCount: postCommentCounts.get(post.id) ?? 0,
     })),
     ...snapshots.map((snapshot) => {
       const authorId = snapshot.created_by ?? snapshot.owner_id ?? "";
@@ -230,6 +244,7 @@ export default async function Home() {
         href: `/portfolio/snapshots/${snapshot.id}`,
         title: snapshot.title ?? "未命名持仓快照",
         items: snapshotItems.get(snapshot.id) ?? [],
+        commentCount: snapshotCommentCounts.get(snapshot.id) ?? 0,
       };
     }),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -268,6 +283,9 @@ export default async function Home() {
                 <span>{formatTime(item.createdAt)}</span>
                 <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-zinc-700">
                   {item.kind === "post" ? postTypeLabels[item.postType] : "持仓快照"}
+                </span>
+                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-zinc-700">
+                  评论 {item.commentCount}
                 </span>
               </div>
 

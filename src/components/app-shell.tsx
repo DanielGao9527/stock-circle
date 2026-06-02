@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
+import { getUnreadNotificationCount } from "@/lib/notifications/data";
+import { createClient } from "@/lib/supabase/server";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -11,11 +13,19 @@ const desktopLinks = [
   { href: "/quick", label: "发布" },
   { href: "/portfolio", label: "持仓" },
   { href: "/portfolios", label: "圈内持仓" },
+  { href: "/notifications", label: "通知" },
   { href: "/me", label: "我的" },
-  { href: "/import", label: "导入" },
 ];
 
-export function AppShell({ children }: AppShellProps) {
+export async function AppShell({ children }: AppShellProps) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const unreadNotificationCount = user
+    ? await getUnreadNotificationCount(supabase, user.id)
+    : 0;
+
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/90 backdrop-blur">
@@ -26,9 +36,14 @@ export function AppShell({ children }: AppShellProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                className="text-sm text-zinc-600 transition-colors hover:text-zinc-900"
+                className="relative text-sm text-zinc-600 transition-colors hover:text-zinc-900"
               >
                 {item.label}
+                {item.href === "/notifications" && unreadNotificationCount > 0 ? (
+                  <span className="absolute -right-3 -top-2 min-w-4 rounded-full bg-blue-600 px-1 text-center text-[10px] leading-4 text-white">
+                    {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+                  </span>
+                ) : null}
               </Link>
             ))}
           </nav>
@@ -39,7 +54,7 @@ export function AppShell({ children }: AppShellProps) {
         {children}
       </main>
 
-      <MobileBottomNav />
+      <MobileBottomNav unreadNotificationCount={unreadNotificationCount} />
     </div>
   );
 }

@@ -25,8 +25,11 @@ type ParsedItem = {
   assetType: "stock" | "option";
   underlyingSymbol: string | null;
   optionType: "call" | "put" | null;
+  optionSide: "buy" | "sell" | "long" | "short" | null;
   strikePrice: number | null;
   expirationDate: string | null;
+  contractCount: number | null;
+  premium: number | null;
   previousPercent: number | null;
   positionPercent: number;
   actionType: string;
@@ -34,12 +37,15 @@ type ParsedItem = {
   costPrice: number | null;
   referencePrice: number | null;
   currency: string;
+  marginNote: string | null;
+  riskNote: string | null;
   note: string | null;
 };
 
 const actionTypes = ["new", "increase", "reduce", "hold", "clear"] as const;
 const assetTypes = ["stock", "option"] as const;
 const optionTypes = ["call", "put"] as const;
+const optionSides = ["buy", "sell", "long", "short"] as const;
 
 function isActionType(value: string): value is (typeof actionTypes)[number] {
   return actionTypes.includes(value as (typeof actionTypes)[number]);
@@ -51,6 +57,10 @@ function isAssetType(value: string): value is (typeof assetTypes)[number] {
 
 function isOptionType(value: string): value is (typeof optionTypes)[number] {
   return optionTypes.includes(value as (typeof optionTypes)[number]);
+}
+
+function isOptionSide(value: string): value is (typeof optionSides)[number] {
+  return optionSides.includes(value as (typeof optionSides)[number]);
 }
 
 function inferActionType(previousPercent: number | null, positionPercent: number) {
@@ -110,8 +120,11 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
   const assetTypeValues = formData.getAll("asset_type");
   const underlyingSymbols = formData.getAll("underlying_symbol");
   const optionTypeValues = formData.getAll("option_type");
+  const optionSideValues = formData.getAll("option_side");
   const strikePrices = formData.getAll("strike_price");
   const expirationDates = formData.getAll("expiration_date");
+  const contractCounts = formData.getAll("contract_count");
+  const premiums = formData.getAll("premium");
   const previousPercents = formData.getAll("previous_percent");
   const positionPercents = formData.getAll("position_percent");
   const actionTypeValues = formData.getAll("action_type");
@@ -119,6 +132,8 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
   const costPrices = formData.getAll("cost_price");
   const referencePrices = formData.getAll("reference_price");
   const currencies = formData.getAll("currency");
+  const marginNotes = formData.getAll("margin_note");
+  const riskNotes = formData.getAll("risk_note");
   const notes = formData.getAll("item_note");
 
   const items = symbols
@@ -131,15 +146,22 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
       const underlyingSymbol = typedUnderlyingSymbol || symbol || null;
       const rawOptionType = getStringValue(optionTypeValues, index).trim().toLowerCase();
       const optionType = isOptionType(rawOptionType) ? rawOptionType : null;
+      const rawOptionSide = getStringValue(optionSideValues, index).trim().toLowerCase();
+      const optionSide = isOptionSide(rawOptionSide) ? rawOptionSide : null;
       const strikePrice = normalizeNumber(strikePrices[index]);
       const expirationDate = normalizeDateText(expirationDates[index]);
+      const contractCount = normalizeNumber(contractCounts[index]);
+      const premium = normalizeNumber(premiums[index]);
       const previousPercent = normalizeNumber(previousPercents[index]);
-      const positionPercent = normalizeNumber(positionPercents[index]);
+      const parsedPositionPercent = normalizeNumber(positionPercents[index]);
+      const positionPercent = assetType === "option" ? (parsedPositionPercent ?? 0) : parsedPositionPercent;
       const rawActionType = getStringValue(actionTypeValues, index).trim();
       const costPrice = normalizeNumber(costPrices[index]);
       const referencePrice = normalizeNumber(referencePrices[index]);
       const currency = getStringValue(currencies, index).trim().toUpperCase() || "USD";
       const changeReason = normalizeText(changeReasons[index] ?? null);
+      const marginNote = normalizeText(marginNotes[index] ?? null);
+      const riskNote = normalizeText(riskNotes[index] ?? null);
       const note = normalizeText(notes[index] ?? null);
       const actionType =
         rawActionType && isActionType(rawActionType)
@@ -156,8 +178,12 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
         underlyingSymbol,
         rawOptionType,
         optionType,
+        rawOptionSide,
+        optionSide,
         strikePrice,
         expirationDate,
+        contractCount,
+        premium,
         previousPercent,
         positionPercent,
         actionType,
@@ -166,20 +192,27 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
         costPrice,
         referencePrice,
         currency,
+        marginNote,
+        riskNote,
         note,
         hasAnyValue:
           symbol ||
           rawAssetType ||
           typedUnderlyingSymbol ||
           rawOptionType ||
+          rawOptionSide ||
           strikePrice !== null ||
           expirationDate !== null ||
+          contractCount !== null ||
+          premium !== null ||
           previousPercent !== null ||
           positionPercent !== null ||
           rawActionType ||
           changeReason !== null ||
           costPrice !== null ||
           referencePrice !== null ||
+          marginNote !== null ||
+          riskNote !== null ||
           note !== null,
       };
     })
@@ -189,7 +222,9 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
     return { error: "请至少添加一条持仓明细。" };
   }
 
-  const invalidItem = items.find((item) => !item.symbol || item.positionPercent === null);
+  const invalidItem = items.find(
+    (item) => !item.symbol || (item.assetType !== "option" && item.positionPercent === null),
+  );
 
   if (invalidItem) {
     return { error: "每条持仓明细都需要填写代码和仓位百分比。" };
@@ -217,6 +252,14 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
     return { error: "期权方向只能是 call 或 put。" };
   }
 
+  const invalidOptionSide = items.find(
+    (item) => item.assetType === "option" && item.rawOptionSide && !isOptionSide(item.rawOptionSide),
+  );
+
+  if (invalidOptionSide) {
+    return { error: "期权买卖方向只能是 buy、sell、long 或 short。" };
+  }
+
   const invalidOptionItem = items.find(
     (item) =>
       item.assetType === "option" &&
@@ -233,8 +276,11 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
     assetType: item.assetType,
     underlyingSymbol: item.assetType === "option" ? item.underlyingSymbol ?? item.symbol : item.symbol,
     optionType: item.assetType === "option" ? item.optionType : null,
+    optionSide: item.assetType === "option" ? item.optionSide : null,
     strikePrice: item.assetType === "option" ? item.strikePrice : null,
     expirationDate: item.assetType === "option" ? item.expirationDate : null,
+    contractCount: item.assetType === "option" ? item.contractCount : null,
+    premium: item.assetType === "option" ? item.premium : null,
     previousPercent: item.previousPercent,
     positionPercent: item.positionPercent!,
     actionType: item.actionType,
@@ -242,6 +288,8 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
     costPrice: item.costPrice,
     referencePrice: item.referencePrice,
     currency: item.currency,
+    marginNote: item.assetType === "option" ? item.marginNote : null,
+    riskNote: item.assetType === "option" ? item.riskNote : null,
     note: item.note,
   }));
 }
@@ -259,8 +307,11 @@ function buildPortfolioItemPayload(
     asset_type: item.assetType,
     underlying_symbol: item.underlyingSymbol,
     option_type: item.optionType,
+    option_side: item.optionSide,
     strike_price: item.strikePrice,
     expiration_date: item.expirationDate,
+    contract_count: item.contractCount,
+    premium: item.premium,
     previous_percent: item.previousPercent,
     position_percent: item.positionPercent,
     action_type: item.actionType,
@@ -268,6 +319,8 @@ function buildPortfolioItemPayload(
     cost_price: item.costPrice,
     reference_price: item.referencePrice,
     currency: item.currency,
+    margin_note: item.marginNote,
+    risk_note: item.riskNote,
     note: item.note,
   };
 }

@@ -2,10 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PortfolioSnapshotDeleteButton } from "@/components/portfolio-snapshot-delete-button";
 import { requireUser } from "@/lib/auth/require-user";
+import { getCommentCountsForTargets } from "@/lib/comments/data";
 import {
   getPortfolioItemDisplayName,
   getPortfolioItemKindLabel,
   isOptionItem,
+  splitPortfolioItems,
 } from "@/lib/portfolio/item-display";
 import {
   getActivePortfolioSnapshots,
@@ -36,11 +38,15 @@ function SnapshotPreviewCard({
   snapshot,
   items,
   canManage,
+  commentCount,
 }: {
   snapshot: PortfolioSnapshotRow;
   items: PortfolioItemRow[];
   canManage: boolean;
+  commentCount: number;
 }) {
+  const { equityItems, optionItems } = splitPortfolioItems(items);
+
   return (
     <article className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -74,18 +80,27 @@ function SnapshotPreviewCard({
       {snapshot.notes ? (
         <p className="mt-3 text-sm leading-6 text-zinc-600">{snapshot.notes}</p>
       ) : null}
+      <div className="mt-3 text-xs text-zinc-500">评论 {commentCount}</div>
 
       {items.length === 0 ? (
         <p className="mt-4 text-sm text-zinc-600">这份快照还没有持仓明细。</p>
       ) : (
         <div className="mt-4 flex flex-wrap gap-2">
-          {items.map((item) => (
+          {equityItems.map((item) => (
             <span
               key={item.id}
               className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-sm text-zinc-700"
             >
               {getPortfolioItemDisplayName(item)} ·{" "}
               {formatPositionChange(item.previous_percent, item.position_percent)}
+            </span>
+          ))}
+          {optionItems.map((item) => (
+            <span
+              key={item.id}
+              className="rounded-full border border-violet-100 bg-violet-50 px-3 py-1 text-sm text-violet-700"
+            >
+              {getPortfolioItemDisplayName(item)} 路 期权持仓
             </span>
           ))}
         </div>
@@ -113,6 +128,11 @@ export default async function PortfolioUserDetailPage({ params }: PortfolioUserD
     snapshots.map((snapshot) => snapshot.id),
   );
   const itemsBySnapshot = groupPortfolioItemsBySnapshot(items);
+  const commentCountsBySnapshot = await getCommentCountsForTargets(
+    supabase,
+    "snapshot",
+    snapshots.map((snapshot) => snapshot.id),
+  );
   const latestSnapshot = snapshots[0] ?? null;
   const historicalSnapshots = snapshots.slice(1);
   const recentChanges = snapshots.flatMap((snapshot) =>
@@ -164,6 +184,7 @@ export default async function PortfolioUserDetailPage({ params }: PortfolioUserD
                 snapshot={latestSnapshot}
                 items={itemsBySnapshot.get(latestSnapshot.id) ?? []}
                 canManage={canManage}
+                commentCount={commentCountsBySnapshot.get(latestSnapshot.id) ?? 0}
               />
             </div>
           ) : (
@@ -184,7 +205,9 @@ export default async function PortfolioUserDetailPage({ params }: PortfolioUserD
                   <div>
                     <div className="font-medium text-zinc-900">
                       {getPortfolioItemDisplayName(item)} ·{" "}
-                      {formatPositionChange(item.previous_percent, item.position_percent)}
+                      {isOptionItem(item)
+                        ? "期权持仓"
+                        : formatPositionChange(item.previous_percent, item.position_percent)}
                     </div>
                     <div className="mt-1 text-sm text-zinc-500">
                       {getSnapshotTitle(snapshot)} · {formatDate(getSnapshotEffectiveDate(snapshot))}
@@ -261,6 +284,7 @@ export default async function PortfolioUserDetailPage({ params }: PortfolioUserD
                 snapshot={snapshot}
                 items={itemsBySnapshot.get(snapshot.id) ?? []}
                 canManage={canManage}
+                commentCount={commentCountsBySnapshot.get(snapshot.id) ?? 0}
               />
             ))}
           </div>

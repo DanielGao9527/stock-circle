@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { PortfolioJsonImport } from "@/components/portfolio-json-import";
 import { PortfolioSnapshotDeleteButton } from "@/components/portfolio-snapshot-delete-button";
 import { PortfolioSnapshotForm } from "@/components/portfolio-snapshot-form";
 import { requireUser } from "@/lib/auth/require-user";
-import { getPortfolioItemDisplayName } from "@/lib/portfolio/item-display";
+import { getCommentCountsForTargets } from "@/lib/comments/data";
+import { getPortfolioItemDisplayName, splitPortfolioItems } from "@/lib/portfolio/item-display";
 import { formatPositionChange } from "@/lib/portfolio/position-change";
 import { createClient } from "@/lib/supabase/server";
 
@@ -42,12 +44,16 @@ function getSnapshotTitle(snapshot: SnapshotRow) {
 function SnapshotCard({
   snapshot,
   items,
+  commentCount,
   highlight = false,
 }: {
   snapshot: SnapshotRow;
   items: PortfolioItemRow[];
+  commentCount: number;
   highlight?: boolean;
 }) {
+  const { equityItems, optionItems } = splitPortfolioItems(items);
+
   return (
     <article className="mt-4 rounded-xl border border-zinc-200 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -57,8 +63,9 @@ function SnapshotCard({
       {snapshot.notes ? (
         <p className="mt-2 text-sm leading-6 text-zinc-600">{snapshot.notes}</p>
       ) : null}
+      <div className="mt-3 text-xs text-zinc-500">评论 {commentCount}</div>
       <div className="mt-3 flex flex-wrap gap-2">
-        {items.slice(0, 5).map((item) => (
+        {equityItems.slice(0, 5).map((item) => (
           <span
             key={item.id}
             className={`rounded-full border px-2 py-0.5 text-xs ${
@@ -69,6 +76,14 @@ function SnapshotCard({
           >
             {getPortfolioItemDisplayName(item)} ·{" "}
             {formatPositionChange(item.previous_percent, item.position_percent)}
+          </span>
+        ))}
+        {optionItems.slice(0, 3).map((item) => (
+          <span
+            key={item.id}
+            className="rounded-full border border-violet-100 bg-violet-50 px-2 py-0.5 text-xs text-violet-700"
+          >
+            {getPortfolioItemDisplayName(item)}
           </span>
         ))}
       </div>
@@ -116,8 +131,11 @@ export default async function PortfolioPage() {
   const previousSnapshots = snapshots.slice(1);
   const snapshotIds = snapshots.map((snapshot) => snapshot.id);
   let itemsBySnapshot = new Map<string, PortfolioItemRow[]>();
+  let commentCountsBySnapshot = new Map<string, number>();
 
   if (snapshotIds.length > 0) {
+    commentCountsBySnapshot = await getCommentCountsForTargets(supabase, "snapshot", snapshotIds);
+
     const { data: itemData } = await supabase
       .from("portfolio_items")
       .select(
@@ -133,6 +151,16 @@ export default async function PortfolioPage() {
     }, new Map<string, PortfolioItemRow[]>());
   }
 
+  const latestPositions = latestSnapshot
+    ? (itemsBySnapshot.get(latestSnapshot.id) ?? [])
+        .filter((item) => item.asset_type !== "option")
+        .map((item) => ({
+          symbol: item.symbol,
+          market: item.market ?? "US",
+          previousPercent: String(item.position_percent),
+        }))
+    : [];
+
   return (
     <section className="space-y-5">
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
@@ -142,7 +170,7 @@ export default async function PortfolioPage() {
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
-            href="/import"
+            href="#portfolio-json-import"
             className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-blue-700"
           >
             JSON 导入持仓
@@ -162,19 +190,24 @@ export default async function PortfolioPage() {
         </div>
       </div>
 
+      <div id="portfolio-json-import">
+        <PortfolioJsonImport latestPositions={latestPositions} />
+      </div>
+
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold">最新快照</h2>
         {latestSnapshot ? (
           <SnapshotCard
             snapshot={latestSnapshot}
             items={itemsBySnapshot.get(latestSnapshot.id) ?? []}
+            commentCount={commentCountsBySnapshot.get(latestSnapshot.id) ?? 0}
             highlight
           />
         ) : (
           <div className="mt-3 space-y-3">
             <p className="text-sm text-zinc-600">还没有持仓快照。</p>
             <Link
-              href="/import"
+              href="#portfolio-json-import"
               className="inline-flex rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
             >
               先用 JSON 导入一份
@@ -196,6 +229,7 @@ export default async function PortfolioPage() {
                 key={snapshot.id}
                 snapshot={snapshot}
                 items={itemsBySnapshot.get(snapshot.id) ?? []}
+                commentCount={commentCountsBySnapshot.get(snapshot.id) ?? 0}
               />
             ))}
           </div>

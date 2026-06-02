@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PostDeleteButton } from "@/components/post-delete-button";
 import { requireUser } from "@/lib/auth/require-user";
+import { getCommentCountsForTargets } from "@/lib/comments/data";
 import { postTypeLabels, type PostType } from "@/lib/posts/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -56,8 +57,11 @@ export default async function MyPostsPage() {
   const posts = (postData ?? []) as PostRow[];
   const postIds = posts.map((post) => post.id);
   let symbolsByPost = new Map<string, string[]>();
+  let commentCountsByPost = new Map<string, number>();
 
   if (postIds.length > 0) {
+    commentCountsByPost = await getCommentCountsForTargets(supabase, "post", postIds);
+
     const { data: relationData } = await supabase
       .from("post_stocks")
       .select("post_id,stock_id")
@@ -111,6 +115,9 @@ export default async function MyPostsPage() {
                   {postTypeLabels[post.post_type]}
                 </span>
                 <span>{formatTime(post.created_at)}</span>
+                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-zinc-700">
+                  评论 {commentCountsByPost.get(post.id) ?? 0}
+                </span>
               </div>
 
               <h2 className="mt-3 text-base font-semibold text-zinc-900">

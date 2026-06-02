@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/require-user";
+import { getCommentCountsForTargets } from "@/lib/comments/data";
 import { actionTypeLabels, formatPositionChange } from "@/lib/portfolio/position-change";
 import { postTypeLabels, type PostType } from "@/lib/posts/types";
 import { createClient } from "@/lib/supabase/server";
@@ -212,6 +213,11 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
     ] as string[]),
   );
   const profiles = await getProfiles(supabase, userIds);
+  const commentCountsByPost = await getCommentCountsForTargets(
+    supabase,
+    "post",
+    posts.map((post) => post.id),
+  );
 
   return (
     <section className="space-y-4">
@@ -241,6 +247,9 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
                   <span>{formatTime(post.created_at)}</span>
                   <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">
                     {postTypeLabels[post.post_type]}
+                  </span>
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-zinc-700">
+                    评论 {commentCountsByPost.get(post.id) ?? 0}
                   </span>
                 </div>
                 <h3 className="mt-2 text-base font-medium text-zinc-900">

@@ -18,8 +18,11 @@ type PortfolioItemRow = {
   asset_type: "stock" | "option" | null;
   underlying_symbol: string | null;
   option_type: "call" | "put" | null;
+  option_side: "buy" | "sell" | "long" | "short" | null;
   strike_price: number | string | null;
   expiration_date: string | null;
+  contract_count: number | string | null;
+  premium: number | string | null;
   previous_percent: number | string | null;
   position_percent: number | string;
   action_type: string | null;
@@ -27,6 +30,8 @@ type PortfolioItemRow = {
   cost_price: number | string | null;
   reference_price: number | string | null;
   currency: string;
+  margin_note: string | null;
+  risk_note: string | null;
   note: string | null;
 };
 
@@ -62,7 +67,7 @@ export default async function SnapshotEditPage({ params }: SnapshotEditPageProps
   const { data: itemData, error: itemError } = await supabase
     .from("portfolio_items")
     .select(
-      "id,symbol,market,asset_type,underlying_symbol,option_type,strike_price,expiration_date,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,note",
+      "id,symbol,market,asset_type,underlying_symbol,option_type,option_side,strike_price,expiration_date,contract_count,premium,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,margin_note,risk_note,note",
     )
     .eq("snapshot_id", id)
     .order("position_percent", { ascending: false });

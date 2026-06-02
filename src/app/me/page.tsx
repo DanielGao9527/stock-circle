@@ -20,7 +20,9 @@ export default async function MePage() {
     <section className="space-y-4 md:space-y-5">
       <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
         <h1 className="text-2xl font-semibold tracking-tight">我的</h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-600">这里是当前登录账号的信息和个人内容入口。</p>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
+          这里是当前登录账号的信息和个人内容入口。
+        </p>
       </div>
 
       <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
@@ -46,13 +48,23 @@ export default async function MePage() {
 
       <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
         <h2 className="text-lg font-semibold">内容管理</h2>
-        <p className="mt-2 text-sm leading-6 text-zinc-600">查看、编辑或删除你自己发布的帖子。</p>
-        <Link
-          href="/me/posts"
-          className="mt-4 inline-flex rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white"
-        >
-          我的帖子
-        </Link>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
+          查看、编辑或删除你自己发布的帖子，也可以查看别人对你内容的回复。
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            href="/me/posts"
+            className="inline-flex rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white"
+          >
+            我的帖子
+          </Link>
+          <Link
+            href="/notifications"
+            className="inline-flex rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700"
+          >
+            通知
+          </Link>
+        </div>
       </div>
     </section>
   );

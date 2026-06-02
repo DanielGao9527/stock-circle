@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/require-user";
-import { getPortfolioItemDisplayName } from "@/lib/portfolio/item-display";
+import { getCommentCountsForTargets } from "@/lib/comments/data";
+import { getPortfolioItemDisplayName, splitPortfolioItems } from "@/lib/portfolio/item-display";
 import {
   getActivePortfolioSnapshots,
   getLatestSnapshotsByUser,
@@ -32,6 +33,7 @@ export default async function PortfoliosPage() {
 
   const snapshotIds = latestEntries.map((entry) => entry.snapshot.id);
   const items = await getPortfolioItemsForSnapshots(supabase, snapshotIds);
+  const commentCountsBySnapshot = await getCommentCountsForTargets(supabase, "snapshot", snapshotIds);
   const itemsBySnapshot = groupPortfolioItemsBySnapshot(items);
   const profiles = await getPortfolioProfileMap(
     supabase,
@@ -65,6 +67,7 @@ export default async function PortfoliosPage() {
         <div className="space-y-4">
           {latestEntries.map(({ userId, snapshot }) => {
             const snapshotItems = itemsBySnapshot.get(snapshot.id) ?? [];
+            const { equityItems, optionItems } = splitPortfolioItems(snapshotItems);
 
             return (
               <article
@@ -94,7 +97,7 @@ export default async function PortfoliosPage() {
                 ) : (
                   <>
                     <div className="mt-4 space-y-3 md:hidden">
-                      {snapshotItems.map((item) => (
+                      {equityItems.map((item) => (
                         <div key={item.id} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
                           <div className="flex items-center justify-between gap-3">
                             <div className="font-medium text-zinc-900">
@@ -106,6 +109,18 @@ export default async function PortfoliosPage() {
                           </div>
                           <div className="mt-2 text-sm text-zinc-700">
                             {formatPositionChange(item.previous_percent, item.position_percent)}
+                          </div>
+                        </div>
+                      ))}
+                      {optionItems.map((item) => (
+                        <div key={item.id} className="rounded-xl border border-violet-100 bg-violet-50 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="font-medium text-zinc-900">
+                              {getPortfolioItemDisplayName(item)}
+                            </div>
+                            <span className="rounded-full bg-white px-2 py-0.5 text-xs text-violet-700">
+                              期权
+                            </span>
                           </div>
                         </div>
                       ))}
@@ -121,7 +136,7 @@ export default async function PortfoliosPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {snapshotItems.map((item) => (
+                          {equityItems.map((item) => (
                             <tr key={item.id} className="border-b border-zinc-100 last:border-0">
                               <td className="py-3 pr-4 font-medium text-zinc-900">
                                 {getPortfolioItemDisplayName(item)}
@@ -132,11 +147,23 @@ export default async function PortfoliosPage() {
                               </td>
                             </tr>
                           ))}
+                          {optionItems.map((item) => (
+                            <tr key={item.id} className="border-b border-zinc-100 last:border-0">
+                              <td className="py-3 pr-4 font-medium text-zinc-900">
+                                {getPortfolioItemDisplayName(item)}
+                              </td>
+                              <td className="py-3 pr-4 text-zinc-600">{item.market ?? "US"}</td>
+                              <td className="py-3 pr-4 text-violet-700">期权持仓</td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
                   </>
                 )}
+                <div className="mt-4 text-xs text-zinc-500">
+                  评论 {commentCountsBySnapshot.get(snapshot.id) ?? 0}
+                </div>
               </article>
             );
           })}

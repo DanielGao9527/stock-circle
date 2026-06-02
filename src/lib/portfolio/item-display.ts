@@ -4,6 +4,7 @@ type OptionLike = {
   asset_type?: string | null;
   underlying_symbol?: string | null;
   option_type?: string | null;
+  option_side?: string | null;
   strike_price?: number | string | null;
   expiration_date?: string | null;
 };
@@ -43,3 +44,20 @@ export function getPortfolioItemKindLabel(item: OptionLike) {
   return isOptionItem(item) ? "期权" : "股票";
 }
 
+export function splitPortfolioItems<T extends OptionLike>(items: T[]) {
+  return {
+    equityItems: items.filter((item) => !isOptionItem(item)),
+    optionItems: items.filter((item) => isOptionItem(item)),
+  };
+}
+
+export function getOptionSideLabel(value: string | null | undefined) {
+  const labels: Record<string, string> = {
+    buy: "买入",
+    sell: "卖出",
+    long: "Long",
+    short: "Short",
+  };
+
+  return value ? labels[value] ?? value : "未填写";
+}

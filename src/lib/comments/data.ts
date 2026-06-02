@@ -108,3 +108,29 @@ export async function getCommentsForTarget(
     createdAt: comment.created_at,
   })) satisfies CommentListItem[];
 }
+
+export async function getCommentCountsForTargets(
+  supabase: SupabaseServerClient,
+  targetType: CommentTargetType,
+  targetIds: string[],
+) {
+  if (targetIds.length === 0) {
+    return new Map<string, number>();
+  }
+
+  const { data, error } = await supabase
+    .from("comments")
+    .select("target_id")
+    .eq("target_type", targetType)
+    .in("target_id", targetIds)
+    .is("deleted_at", null);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as { target_id: string }[]).reduce((map, comment) => {
+    map.set(comment.target_id, (map.get(comment.target_id) ?? 0) + 1);
+    return map;
+  }, new Map<string, number>());
+}

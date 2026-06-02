@@ -67,7 +67,7 @@ http://localhost:3000
 - `/portfolio/export` 导出操作流
 - `/portfolios` 圈内公开持仓
 - `/me` 我的账号
-- `/import` 持仓 JSON 导入
+- `/portfolio` 持仓 JSON 导入
 
 ## PWA 与移动端
 

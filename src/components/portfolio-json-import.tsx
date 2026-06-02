@@ -14,8 +14,11 @@ type ImportPosition = {
   market: string;
   asset_type: "stock" | "option";
   option_type: string;
+  option_side: string;
   strike_price: string;
   expiration_date: string;
+  contract_count: string;
+  premium: string;
   previous_percent: string;
   position_percent: string;
   action_type: string;
@@ -23,6 +26,8 @@ type ImportPosition = {
   reference_price: string;
   currency: string;
   change_reason: string;
+  margin_note: string;
+  risk_note: string;
   note: string;
 };
 
@@ -37,15 +42,23 @@ type PortfolioSnapshotJson = {
   title?: unknown;
   note?: unknown;
   positions?: unknown;
+  equityPositions?: unknown;
+  optionPositions?: unknown;
 };
 
 type PositionJson = {
   symbol?: unknown;
+  underlyingSymbol?: unknown;
   market?: unknown;
   assetType?: unknown;
+  itemType?: unknown;
   optionType?: unknown;
+  side?: unknown;
+  optionSide?: unknown;
   strikePrice?: unknown;
   expirationDate?: unknown;
+  contractCount?: unknown;
+  premium?: unknown;
   previousPercent?: unknown;
   positionPercent?: unknown;
   actionType?: unknown;
@@ -54,6 +67,8 @@ type PositionJson = {
   referencePrice?: unknown;
   currency?: unknown;
   changeReason?: unknown;
+  marginNote?: unknown;
+  riskNote?: unknown;
   note?: unknown;
 };
 
@@ -105,6 +120,45 @@ const exampleJson = `{
       "costPrice": 9.8,
       "currentPrice": 12.1,
       "currency": "USD",
+      "changeReason": "用 LEAPS 放大上行弹性",
+      "note": ""
+    }
+  ]
+}`;
+
+const portfolioImportExampleJson = `{
+  "type": "portfolio_snapshot",
+  "title": "2026-06-03 持仓调整",
+  "note": "根据新一轮仓位计划调整",
+  "equityPositions": [
+    {
+      "symbol": "MU",
+      "market": "US",
+      "previousPercent": 20,
+      "positionPercent": 30,
+      "actionType": "increase",
+      "costPrice": 85.2,
+      "currentPrice": 112.5,
+      "currency": "USD",
+      "changeReason": "HBM 逻辑继续强化",
+      "note": ""
+    }
+  ],
+  "optionPositions": [
+    {
+      "assetType": "option",
+      "underlyingSymbol": "NVDA",
+      "market": "US",
+      "optionType": "call",
+      "side": "buy",
+      "strikePrice": 120,
+      "expirationDate": "2026-12-18",
+      "contractCount": 1,
+      "premium": 9.8,
+      "currentPrice": 12.1,
+      "currency": "USD",
+      "marginNote": "",
+      "riskNote": "Long call risk limited to premium paid.",
       "changeReason": "用 LEAPS 放大上行弹性",
       "note": ""
     }
@@ -165,6 +219,11 @@ function normalizeOptionType(value: unknown) {
   return text === "call" || text === "put" ? text : "";
 }
 
+function normalizeOptionSide(value: unknown) {
+  const text = toText(value).toLowerCase();
+  return ["buy", "sell", "long", "short"].includes(text) ? text : "";
+}
+
 function normalizeDateInput(value: unknown) {
   const text = toText(value);
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
@@ -202,8 +261,11 @@ function createEmptyPosition(index: number): ImportPosition {
     market: "US",
     asset_type: "stock",
     option_type: "",
+    option_side: "",
     strike_price: "",
     expiration_date: "",
+    contract_count: "",
+    premium: "",
     previous_percent: "",
     position_percent: "",
     action_type: "",
@@ -211,6 +273,8 @@ function createEmptyPosition(index: number): ImportPosition {
     reference_price: "",
     currency: "USD",
     change_reason: "",
+    margin_note: "",
+    risk_note: "",
     note: "",
   };
 }
@@ -236,7 +300,8 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
   }
 
   function fillExampleTemplate() {
-    setJsonText(exampleJson);
+    void exampleJson;
+    setJsonText(portfolioImportExampleJson);
     setDraft(null);
     setParseError("");
   }
@@ -289,16 +354,25 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
     });
   }
 
-  function normalizePosition(value: unknown, index: number): ImportPosition | { error: string } {
+  function normalizePosition(
+    value: unknown,
+    index: number,
+    forcedAssetType?: "stock" | "option",
+  ): ImportPosition | { error: string } {
     if (!isObject(value)) {
       return { error: `第 ${index + 1} 条 position 必须是对象。` };
     }
 
     const position = value as PositionJson;
-    const symbol = toText(position.symbol).toUpperCase();
+    const assetType = forcedAssetType ?? normalizeAssetType(position.assetType ?? position.itemType);
+    const symbol = (
+      assetType === "option"
+        ? toText(position.underlyingSymbol) || toText(position.symbol)
+        : toText(position.symbol)
+    ).toUpperCase();
     const market = toText(position.market).toUpperCase() || "US";
-    const assetType = normalizeAssetType(position.assetType);
     const optionType = normalizeOptionType(position.optionType);
+    const optionSide = normalizeOptionSide(position.side ?? position.optionSide);
     const strikePrice = toNumberText(position.strikePrice);
     const expirationDate = normalizeDateInput(position.expirationDate);
     const positionPercent = toNumberText(position.positionPercent);
@@ -307,7 +381,7 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
       return { error: `第 ${index + 1} 条 position 缺少 symbol。` };
     }
 
-    if (!positionPercent) {
+    if (assetType !== "option" && !positionPercent) {
       return { error: `第 ${index + 1} 条 position 缺少 positionPercent。` };
     }
 
@@ -321,16 +395,21 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
       market,
       asset_type: assetType,
       option_type: optionType,
+      option_side: optionSide,
       strike_price: strikePrice,
       expiration_date: expirationDate,
+      contract_count: toNumberText(position.contractCount),
+      premium: toNumberText(position.premium),
       previous_percent:
         toNumberText(position.previousPercent) || buildFallbackPreviousPercent(symbol, market),
-      position_percent: positionPercent,
+      position_percent: assetType === "option" ? positionPercent || "0" : positionPercent,
       action_type: normalizeActionType(position.actionType),
       cost_price: toNumberText(position.costPrice),
       reference_price: toNumberText(position.currentPrice) || toNumberText(position.referencePrice),
       currency: toText(position.currency).toUpperCase() || "USD",
       change_reason: toText(position.changeReason),
+      margin_note: toText(position.marginNote),
+      risk_note: toText(position.riskNote),
       note: toText(position.note),
     };
   }
@@ -361,6 +440,30 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
     if (parsed.type !== undefined && parsed.type !== "portfolio_snapshot") {
       setParseError('type 字段如果存在，必须是 "portfolio_snapshot"。');
       return;
+    }
+
+    if (parsed.equityPositions !== undefined || parsed.optionPositions !== undefined) {
+      if (parsed.equityPositions !== undefined && !Array.isArray(parsed.equityPositions)) {
+        setParseError("equityPositions 必须是数组。");
+        return;
+      }
+
+      if (parsed.optionPositions !== undefined && !Array.isArray(parsed.optionPositions)) {
+        setParseError("optionPositions 必须是数组。");
+        return;
+      }
+
+      const equityPositions = Array.isArray(parsed.equityPositions) ? parsed.equityPositions : [];
+      const optionPositions = Array.isArray(parsed.optionPositions) ? parsed.optionPositions : [];
+
+      parsed.positions = [
+        ...equityPositions.map((position) =>
+          isObject(position) ? { ...position, assetType: "stock" } : position,
+        ),
+        ...optionPositions.map((position) =>
+          isObject(position) ? { ...position, assetType: "option" } : position,
+        ),
+      ];
     }
 
     if (!Array.isArray(parsed.positions)) {
@@ -394,6 +497,11 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
     });
   }
 
+  const equityDraftPositions =
+    draft?.positions.filter((position) => position.asset_type !== "option") ?? [];
+  const optionDraftPositions =
+    draft?.positions.filter((position) => position.asset_type === "option") ?? [];
+
   return (
     <section className="space-y-5">
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
@@ -408,7 +516,7 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
           <h2 className="text-lg font-semibold">JSON 模板</h2>
           <div className="flex flex-wrap gap-2">
             <CopyTextButton
-              text={exampleJson}
+              text={portfolioImportExampleJson}
               idleLabel="复制模板"
               successLabel="模板已复制"
               className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
@@ -428,7 +536,7 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
           {" `assetType: \"option\"` "}并补上 `optionType`、`strikePrice`、`expirationDate`。
         </p>
         <pre className="mt-3 overflow-x-auto rounded-2xl border border-zinc-200 bg-zinc-50 p-4 font-mono text-sm leading-6 text-zinc-800">
-          {exampleJson}
+          {portfolioImportExampleJson}
         </pre>
       </div>
 
@@ -438,7 +546,7 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
           value={jsonText}
           onChange={(event) => setJsonText(event.target.value)}
           rows={14}
-          placeholder={exampleJson}
+          placeholder={portfolioImportExampleJson}
           className="mt-3 w-full resize-y rounded-xl border border-zinc-300 px-3 py-3 font-mono text-sm leading-6 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         />
         <p className="mt-2 text-xs leading-5 text-zinc-500">
@@ -506,8 +614,14 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
           </div>
 
           <div className="space-y-3">
-            {draft.positions.map((position, index) => (
+            {[...equityDraftPositions, ...optionDraftPositions].map((position, index) => (
               <div key={position.id} className="rounded-xl border border-zinc-200 bg-white p-4">
+                {index === 0 && equityDraftPositions.length > 0 ? (
+                  <div className="mb-3 text-sm font-semibold text-zinc-900">普通持仓 / 股票 ETF</div>
+                ) : null}
+                {index === equityDraftPositions.length && optionDraftPositions.length > 0 ? (
+                  <div className="mb-3 text-sm font-semibold text-zinc-900">期权持仓</div>
+                ) : null}
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <span className="text-sm font-medium">第 {index + 1} 行</span>
                   <button
@@ -578,7 +692,7 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
                       type="number"
                       min="0"
                       step="0.0001"
-                      required
+                      required={position.asset_type !== "option"}
                       value={position.position_percent}
                       onChange={(event) =>
                         updatePosition(position.id, "position_percent", event.target.value)
@@ -635,7 +749,7 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
                 </div>
 
                 {position.asset_type === "option" ? (
-                  <div className="mt-3 grid gap-3 rounded-xl border border-violet-100 bg-violet-50/60 p-3 md:grid-cols-3">
+                  <div className="mt-3 grid gap-3 rounded-xl border border-violet-100 bg-violet-50/60 p-3 md:grid-cols-4">
                     <label className="block space-y-1">
                       <span className="text-sm font-medium">Call / Put</span>
                       <select
@@ -679,12 +793,63 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
                         className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                       />
                     </label>
+
+                    <label className="block space-y-1">
+                      <span className="text-sm font-medium">买卖方向</span>
+                      <select
+                        name="option_side"
+                        value={position.option_side}
+                        onChange={(event) =>
+                          updatePosition(position.id, "option_side", event.target.value)
+                        }
+                        className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      >
+                        <option value="">未填写</option>
+                        <option value="buy">买入</option>
+                        <option value="sell">卖出</option>
+                        <option value="long">Long</option>
+                        <option value="short">Short</option>
+                      </select>
+                    </label>
+
+                    <label className="block space-y-1">
+                      <span className="text-sm font-medium">合约数量</span>
+                      <input
+                        name="contract_count"
+                        type="number"
+                        min="0"
+                        step="0.000001"
+                        value={position.contract_count}
+                        onChange={(event) =>
+                          updatePosition(position.id, "contract_count", event.target.value)
+                        }
+                        className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      />
+                    </label>
+
+                    <label className="block space-y-1">
+                      <span className="text-sm font-medium">权利金</span>
+                      <input
+                        name="premium"
+                        type="number"
+                        min="0"
+                        step="0.000001"
+                        value={position.premium}
+                        onChange={(event) =>
+                          updatePosition(position.id, "premium", event.target.value)
+                        }
+                        className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      />
+                    </label>
                   </div>
                 ) : (
                   <>
                     <input type="hidden" name="option_type" value="" />
+                    <input type="hidden" name="option_side" value="" />
                     <input type="hidden" name="strike_price" value="" />
                     <input type="hidden" name="expiration_date" value="" />
+                    <input type="hidden" name="contract_count" value="" />
+                    <input type="hidden" name="premium" value="" />
                   </>
                 )}
 
@@ -743,6 +908,41 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
                     className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
+
+                {position.asset_type === "option" ? (
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <label className="block space-y-1">
+                      <span className="text-sm font-medium">保证金说明</span>
+                      <input
+                        name="margin_note"
+                        type="text"
+                        value={position.margin_note}
+                        onChange={(event) =>
+                          updatePosition(position.id, "margin_note", event.target.value)
+                        }
+                        className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      />
+                    </label>
+
+                    <label className="block space-y-1">
+                      <span className="text-sm font-medium">风险说明</span>
+                      <input
+                        name="risk_note"
+                        type="text"
+                        value={position.risk_note}
+                        onChange={(event) =>
+                          updatePosition(position.id, "risk_note", event.target.value)
+                        }
+                        className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <>
+                    <input type="hidden" name="margin_note" value="" />
+                    <input type="hidden" name="risk_note" value="" />
+                  </>
+                )}
               </div>
             ))}
           </div>

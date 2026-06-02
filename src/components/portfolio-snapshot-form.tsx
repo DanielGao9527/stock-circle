@@ -160,14 +160,14 @@ export function PortfolioSnapshotForm() {
                   min="0"
                   step="0.0001"
                   placeholder="25"
-                  required={index === 0}
+                  required={index === 0 && row.asset_type !== "option"}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
             </div>
 
             {row.asset_type === "option" ? (
-              <div className="mt-3 grid gap-3 rounded-xl border border-violet-100 bg-violet-50/60 p-3 md:grid-cols-3">
+              <div className="mt-3 grid gap-3 rounded-xl border border-violet-100 bg-violet-50/60 p-3 md:grid-cols-4">
                 <input type="hidden" name="underlying_symbol" value="" />
                 <label className="block space-y-1">
                   <span className="text-sm font-medium">Call / Put</span>
@@ -201,13 +201,53 @@ export function PortfolioSnapshotForm() {
                     className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
+
+                <label className="block space-y-1">
+                  <span className="text-sm font-medium">买卖方向</span>
+                  <select
+                    name="option_side"
+                    defaultValue=""
+                    className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="">未填写</option>
+                    <option value="buy">买入</option>
+                    <option value="sell">卖出</option>
+                    <option value="long">Long</option>
+                    <option value="short">Short</option>
+                  </select>
+                </label>
+
+                <label className="block space-y-1">
+                  <span className="text-sm font-medium">合约数量</span>
+                  <input
+                    name="contract_count"
+                    type="number"
+                    min="0"
+                    step="0.000001"
+                    className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+
+                <label className="block space-y-1">
+                  <span className="text-sm font-medium">权利金</span>
+                  <input
+                    name="premium"
+                    type="number"
+                    min="0"
+                    step="0.000001"
+                    className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
               </div>
             ) : (
               <>
                 <input type="hidden" name="underlying_symbol" value="" />
                 <input type="hidden" name="option_type" value="" />
+                <input type="hidden" name="option_side" value="" />
                 <input type="hidden" name="strike_price" value="" />
                 <input type="hidden" name="expiration_date" value="" />
+                <input type="hidden" name="contract_count" value="" />
+                <input type="hidden" name="premium" value="" />
               </>
             )}
 
@@ -299,6 +339,33 @@ export function PortfolioSnapshotForm() {
                 className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </label>
+
+            {row.asset_type === "option" ? (
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <label className="block space-y-1">
+                  <span className="text-sm font-medium">保证金说明</span>
+                  <input
+                    name="margin_note"
+                    type="text"
+                    className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+
+                <label className="block space-y-1">
+                  <span className="text-sm font-medium">风险说明</span>
+                  <input
+                    name="risk_note"
+                    type="text"
+                    className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+              </div>
+            ) : (
+              <>
+                <input type="hidden" name="margin_note" value="" />
+                <input type="hidden" name="risk_note" value="" />
+              </>
+            )}
           </div>
         ))}
       </div>
