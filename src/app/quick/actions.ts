@@ -11,6 +11,11 @@ type CreatedPostRow = {
   id: string;
 };
 
+type SymbolMarketInput = {
+  symbol?: unknown;
+  market?: unknown;
+};
+
 function normalizeText(value: FormDataEntryValue | null) {
   const text = typeof value === "string" ? value.trim() : "";
   return text.length > 0 ? text : null;
@@ -24,6 +29,40 @@ function normalizeSymbolList(value: FormDataEntryValue | null) {
     .filter(Boolean);
 
   return Array.from(new Set(symbols));
+}
+
+function parseSymbolMarketMap(value: FormDataEntryValue | null) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  const symbolMarketMap = new Map<string, string>();
+
+  if (!raw) {
+    return symbolMarketMap;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return symbolMarketMap;
+    }
+
+    parsed.forEach((item: SymbolMarketInput | null) => {
+      if (!item || typeof item !== "object") {
+        return;
+      }
+
+      const symbol = typeof item.symbol === "string" ? item.symbol.trim().toUpperCase() : "";
+      const market = typeof item.market === "string" ? item.market.trim().toUpperCase() : "";
+
+      if (symbol && market) {
+        symbolMarketMap.set(symbol, market);
+      }
+    });
+  } catch {
+    return symbolMarketMap;
+  }
+
+  return symbolMarketMap;
 }
 
 function isValidPostType(value: string): value is PostType {
@@ -64,6 +103,7 @@ export async function createQuickPost(
   const rawPostType = normalizeText(formData.get("post_type"));
   const sourceUrl = normalizeOptionalUrl(normalizeText(formData.get("source_url")));
   const symbols = normalizeSymbolList(formData.get("symbols"));
+  const symbolMarketMap = parseSymbolMarketMap(formData.get("symbol_markets"));
   const market = normalizeText(formData.get("market"))?.toUpperCase() ?? "US";
   const referencePrice = normalizeOptionalPrice(normalizeText(formData.get("reference_price")));
   const referenceCurrency =
@@ -101,7 +141,11 @@ export async function createQuickPost(
   try {
     const stockIds =
       symbols.length > 0
-        ? await Promise.all(symbols.map((symbol) => getOrCreateStockId(supabase, symbol, market)))
+        ? await Promise.all(
+            symbols.map((symbol) =>
+              getOrCreateStockId(supabase, symbol, symbolMarketMap.get(symbol) ?? market),
+            ),
+          )
         : [];
 
     const { data: createdPost, error: postError } = await supabase

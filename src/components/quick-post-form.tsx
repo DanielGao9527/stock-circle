@@ -18,8 +18,11 @@ type Draft = {
   post_type: PostType;
   source_url: string;
   symbols: string;
+  symbol_markets: string;
+  market: string;
   reference_price: string;
   reference_currency: string;
+  tags: string[];
 };
 
 type JsonDraftInput = {
@@ -50,9 +53,43 @@ const emptyDraft: Draft = {
   post_type: "idea",
   source_url: "",
   symbols: "",
+  symbol_markets: "",
+  market: "US",
   reference_price: "",
   reference_currency: "USD",
+  tags: [],
 };
+
+const aiJsonPromptTemplate = `请把下面的推文、文章、聊天记录或股票相关文字整理成 StockCircle JSON。
+
+要求：
+- 只输出 JSON，不要输出解释文字。
+- 不要给投资建议，不要判断买入/卖出，不要推断情绪或投资方向。
+- 如果无法确定字段，请留空字符串、空数组或 null。
+- postType 只能是 idea、link、news、review、other 之一。
+- symbols 使用对象数组，每个对象包含 symbol 和 market。
+
+JSON 格式：
+{
+  "type": "post",
+  "title": "",
+  "summary": "",
+  "content": "",
+  "symbols": [
+    {
+      "symbol": "MU",
+      "market": "US"
+    }
+  ],
+  "postType": "idea",
+  "sourceUrl": "",
+  "referencePrice": null,
+  "referenceCurrency": "USD",
+  "tags": []
+}
+
+原始内容：
+[在这里粘贴原文]`;
 
 function toText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -74,6 +111,11 @@ function toOptionalNumberText(value: unknown) {
 
 function isPostType(value: unknown): value is PostType {
   return typeof value === "string" && postTypes.includes(value as PostType);
+}
+
+function normalizePostType(value: unknown): PostType {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return isPostType(normalized) ? normalized : "other";
 }
 
 function normalizeSymbols(value: string) {
@@ -111,6 +153,17 @@ function generateTitle(content: string) {
     .find(Boolean);
 
   return firstSentence ? firstSentence.slice(0, 80) : "";
+}
+
+function normalizeTags(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((tag) => String(tag).trim())
+    .filter(Boolean)
+    .slice(0, 10);
 }
 
 function SubmitButton() {
@@ -237,7 +290,24 @@ function DraftPreview({
         </label>
       </div>
 
-      <input type="hidden" name="market" value="US" />
+      {draft.tags.length > 0 ? (
+        <div className="rounded-xl border border-zinc-200 bg-white p-3">
+          <div className="text-sm font-medium text-zinc-700">标签预览（暂不保存）</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {draft.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs text-zinc-600"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <input type="hidden" name="market" value={draft.market} />
+      <input type="hidden" name="symbol_markets" value={draft.symbol_markets} />
 
       {actionState.error ? (
         <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -282,6 +352,9 @@ function QuickPasteMode({
       post_type: selectedType || (sourceUrl ? "link" : "idea"),
       source_url: sourceUrl,
       symbols,
+      symbol_markets: symbols
+        ? JSON.stringify(symbols.split(",").map((symbol) => ({ symbol: symbol.trim(), market: "US" })))
+        : "",
     });
   }
 
@@ -367,15 +440,61 @@ function AiComingSoonMode() {
 }
 
 function symbolsFromJson(value: unknown) {
+  const symbolMarkets: Array<{ symbol: string; market: string }> = [];
+
   if (Array.isArray(value)) {
-    return normalizeSymbols(value.map((item) => String(item)).join(","));
+    value.forEach((item) => {
+      if (typeof item === "string") {
+        const symbol = item.trim().toUpperCase();
+
+        if (symbol) {
+          symbolMarkets.push({ symbol, market: "US" });
+        }
+
+        return;
+      }
+
+      if (typeof item === "object" && item !== null) {
+        const symbolInput = (item as { symbol?: unknown }).symbol;
+        const marketInput = (item as { market?: unknown }).market;
+        const symbol = typeof symbolInput === "string" ? symbolInput.trim().toUpperCase() : "";
+        const market = typeof marketInput === "string" ? marketInput.trim().toUpperCase() : "US";
+
+        if (symbol) {
+          symbolMarkets.push({ symbol, market: market || "US" });
+        }
+      }
+    });
+
+    const uniqueSymbols = Array.from(new Set(symbolMarkets.map((item) => item.symbol)));
+
+    return {
+      symbols: uniqueSymbols.join(", "),
+      symbolMarkets: JSON.stringify(symbolMarkets),
+      firstMarket: symbolMarkets[0]?.market ?? "US",
+    };
   }
 
   if (typeof value === "string") {
-    return normalizeSymbols(value);
+    const symbols = normalizeSymbols(value);
+    const symbolMarketsFromString = symbols
+      .split(",")
+      .map((symbol) => symbol.trim())
+      .filter(Boolean)
+      .map((symbol) => ({ symbol, market: "US" }));
+
+    return {
+      symbols,
+      symbolMarkets: JSON.stringify(symbolMarketsFromString),
+      firstMarket: "US",
+    };
   }
 
-  return "";
+  return {
+    symbols: "",
+    symbolMarkets: "",
+    firstMarket: "US",
+  };
 }
 
 function AiJsonImportMode({
@@ -385,6 +504,16 @@ function AiJsonImportMode({
 }) {
   const [jsonText, setJsonText] = useState("");
   const [error, setError] = useState("");
+  const [copyMessage, setCopyMessage] = useState("");
+
+  async function handleCopyPrompt() {
+    try {
+      await navigator.clipboard.writeText(aiJsonPromptTemplate);
+      setCopyMessage("已复制 prompt 模板。");
+    } catch {
+      setCopyMessage("复制失败，请手动选择模板文本。");
+    }
+  }
 
   function handleParseJson() {
     let parsed: JsonDraftInput;
@@ -406,7 +535,6 @@ function AiJsonImportMode({
       return;
     }
 
-    const postType = isPostType(parsed.postType) ? parsed.postType : "idea";
     const content = toText(parsed.content) || toText(parsed.summary);
 
     if (!content) {
@@ -414,15 +542,21 @@ function AiJsonImportMode({
       return;
     }
 
+    const symbols = symbolsFromJson(parsed.symbols);
+    const postType = parsed.postType === undefined ? "idea" : normalizePostType(parsed.postType);
+
     setError("");
     onDraft({
       title: toText(parsed.title) || generateTitle(content),
       content,
       post_type: postType,
       source_url: toText(parsed.sourceUrl),
-      symbols: symbolsFromJson(parsed.symbols),
+      symbols: symbols.symbols,
+      symbol_markets: symbols.symbolMarkets,
+      market: symbols.firstMarket,
       reference_price: toOptionalNumberText(parsed.referencePrice),
       reference_currency: toText(parsed.referenceCurrency).toUpperCase() || "USD",
+      tags: normalizeTags(parsed.tags),
     });
   }
 
@@ -435,11 +569,39 @@ function AiJsonImportMode({
         </p>
       </div>
 
+      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+        <h2 className="text-base font-semibold">如何使用外部 AI 生成 JSON</h2>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
+          你可以把推文、文章、聊天记录或股票相关文字发给 ChatGPT、Claude、DeepSeek
+          等外部 AI 工具，让它按 StockCircle 格式输出 JSON。普通用户不需要手写 JSON。
+        </p>
+
+        <div className="mt-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <span className="text-sm font-medium">Prompt 模板</span>
+            <button
+              type="button"
+              onClick={handleCopyPrompt}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
+            >
+              复制模板
+            </button>
+          </div>
+          <textarea
+            readOnly
+            value={aiJsonPromptTemplate}
+            rows={10}
+            className="w-full resize-y rounded-xl border border-zinc-300 bg-white px-3 py-3 font-mono text-xs leading-5 text-zinc-700"
+          />
+          {copyMessage ? <p className="mt-2 text-sm text-zinc-500">{copyMessage}</p> : null}
+        </div>
+      </div>
+
       <textarea
         value={jsonText}
         onChange={(event) => setJsonText(event.target.value)}
         rows={12}
-        placeholder={`{\n  "type": "post",\n  "title": "示例标题",\n  "content": "示例内容",\n  "symbols": ["NVDA"],\n  "postType": "idea"\n}`}
+        placeholder={`{\n  "type": "post",\n  "title": "",\n  "summary": "",\n  "content": "",\n  "symbols": [\n    {\n      "symbol": "MU",\n      "market": "US"\n    }\n  ],\n  "postType": "idea",\n  "sourceUrl": "",\n  "referencePrice": null,\n  "referenceCurrency": "USD",\n  "tags": []\n}`}
         className="w-full resize-y rounded-xl border border-zinc-300 px-3 py-3 font-mono text-sm leading-6 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
       />
 
