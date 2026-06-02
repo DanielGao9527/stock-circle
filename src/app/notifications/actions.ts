@@ -35,6 +35,7 @@ export async function openNotification(formData: FormData) {
     .is("read_at", null);
 
   revalidatePath("/notifications");
+  revalidatePath("/");
 
   if (targetType === "post") {
     redirect(`/posts/${targetId}`);
@@ -64,4 +65,5 @@ export async function markAllNotificationsRead() {
     .is("read_at", null);
 
   revalidatePath("/notifications");
+  revalidatePath("/");
 }

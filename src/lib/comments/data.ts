@@ -8,6 +8,9 @@ export type CommentListItem = {
   authorName: string;
   content: string;
   createdAt: string;
+  parentCommentId: string | null;
+  isDeleted: boolean;
+  deletedAt: string | null;
 };
 
 type CommentRow = {
@@ -15,6 +18,9 @@ type CommentRow = {
   author_id: string;
   content: string;
   created_at: string;
+  parent_comment_id: string | null;
+  is_deleted: boolean | null;
+  deleted_at: string | null;
 };
 
 type ProfileRow = {
@@ -71,10 +77,9 @@ export async function getCommentsForTarget(
 ) {
   const { data, error } = await supabase
     .from("comments")
-    .select("id,author_id,content,created_at")
+    .select("id,author_id,content,created_at,parent_comment_id,is_deleted,deleted_at")
     .eq("target_type", targetType)
     .eq("target_id", targetId)
-    .is("deleted_at", null)
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -106,6 +111,9 @@ export async function getCommentsForTarget(
     authorName: profileMap.get(comment.author_id) ?? `成员 ${comment.author_id.slice(0, 8)}`,
     content: comment.content,
     createdAt: comment.created_at,
+    parentCommentId: comment.parent_comment_id,
+    isDeleted: Boolean(comment.is_deleted || comment.deleted_at),
+    deletedAt: comment.deleted_at,
   })) satisfies CommentListItem[];
 }
 

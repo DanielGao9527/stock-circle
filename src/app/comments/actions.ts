@@ -2,10 +2,7 @@
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
-import {
-  isCommentTargetType,
-  isVisibleCommentTarget,
-} from "@/lib/comments/data";
+import { isCommentTargetType, isVisibleCommentTarget, type CommentTargetType } from "@/lib/comments/data";
 import { ensureProfile } from "@/lib/profiles/ensure-profile";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,6 +19,13 @@ type OwnedCommentRow = {
 type NotificationTarget = {
   ownerId: string;
   targetTitle: string;
+};
+
+type ParentCommentRow = {
+  id: string;
+  author_id: string;
+  target_type: CommentTargetType;
+  target_id: string;
 };
 
 function normalizeText(value: FormDataEntryValue | null) {
@@ -49,13 +53,30 @@ async function getOwnedActiveComment(
   return data as OwnedCommentRow | null;
 }
 
+async function getParentComment(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  parentCommentId: string,
+) {
+  const { data, error } = await supabase
+    .from("comments")
+    .select("id,author_id,target_type,target_id")
+    .eq("id", parentCommentId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as ParentCommentRow | null;
+}
+
 function getCommentSummary(content: string) {
   return content.length > 120 ? `${content.slice(0, 120)}...` : content;
 }
 
 async function getNotificationTarget(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  targetType: "post" | "snapshot",
+  targetType: CommentTargetType,
   targetId: string,
 ) {
   if (targetType === "post") {
@@ -117,6 +138,7 @@ export async function createComment(
   const targetTypeValue = normalizeText(formData.get("target_type"));
   const targetId = normalizeText(formData.get("target_id"));
   const content = normalizeText(formData.get("content"));
+  const parentCommentId = normalizeText(formData.get("parent_comment_id"));
 
   if (!targetTypeValue || !isCommentTargetType(targetTypeValue)) {
     return { error: "评论目标无效。" };
@@ -146,6 +168,20 @@ export async function createComment(
       return { error: "当前内容不可评论或已不可见。" };
     }
 
+    let parentComment: ParentCommentRow | null = null;
+
+    if (parentCommentId) {
+      parentComment = await getParentComment(supabase, parentCommentId);
+
+      if (
+        !parentComment ||
+        parentComment.target_type !== targetTypeValue ||
+        parentComment.target_id !== targetId
+      ) {
+        return { error: "回复目标不存在，或与当前内容不匹配。" };
+      }
+    }
+
     await ensureProfile(supabase, user);
 
     const { data: createdComment, error } = await supabase
@@ -154,6 +190,7 @@ export async function createComment(
         author_id: user.id,
         target_type: targetTypeValue,
         target_id: targetId,
+        parent_comment_id: parentCommentId,
         content,
       })
       .select("id")
@@ -163,18 +200,29 @@ export async function createComment(
       throw new Error(error.message);
     }
 
+    const recipients = new Set<string>();
     const notificationTarget = await getNotificationTarget(supabase, targetTypeValue, targetId);
 
-    if (notificationTarget && notificationTarget.ownerId !== user.id) {
-      const { error: notificationError } = await supabase.from("notifications").insert({
-        recipient_id: notificationTarget.ownerId,
+    if (notificationTarget?.ownerId && notificationTarget.ownerId !== user.id) {
+      recipients.add(notificationTarget.ownerId);
+    }
+
+    if (parentComment?.author_id && parentComment.author_id !== user.id) {
+      recipients.add(parentComment.author_id);
+    }
+
+    if (recipients.size > 0) {
+      const notificationRows = Array.from(recipients).map((recipientId) => ({
+        recipient_id: recipientId,
         actor_id: user.id,
         notification_type: "comment_reply",
         target_type: targetTypeValue,
         target_id: targetId,
         comment_id: (createdComment as { id: string }).id,
         summary: getCommentSummary(content),
-      });
+      }));
+
+      const { error: notificationError } = await supabase.from("notifications").insert(notificationRows);
 
       if (notificationError) {
         throw new Error(notificationError.message);

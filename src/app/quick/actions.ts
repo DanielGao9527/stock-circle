@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { postTypes, type PostType, type QuickPostActionState } from "@/lib/posts/types";
 import { ensureProfile } from "@/lib/profiles/ensure-profile";
 import { getOrCreateStockId } from "@/lib/stocks/get-or-create-stock";
 import { createClient } from "@/lib/supabase/server";
-import { postTypes, type PostType, type QuickPostActionState } from "@/lib/posts/types";
+import { normalizeUrl } from "@/lib/url/normalize-url";
 
 type CreatedPostRow = {
   id: string;
@@ -69,22 +70,6 @@ function isValidPostType(value: string): value is PostType {
   return postTypes.includes(value as PostType);
 }
 
-function normalizeOptionalUrl(value: string | null) {
-  if (!value) {
-    return null;
-  }
-
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return null;
-    }
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
 function normalizeOptionalPrice(value: string | null) {
   if (!value) {
     return null;
@@ -101,7 +86,8 @@ export async function createQuickPost(
   const title = normalizeText(formData.get("title"));
   const content = normalizeText(formData.get("content"));
   const rawPostType = normalizeText(formData.get("post_type"));
-  const sourceUrl = normalizeOptionalUrl(normalizeText(formData.get("source_url")));
+  const rawSourceUrl = normalizeText(formData.get("source_url"));
+  const sourceUrl = normalizeUrl(rawSourceUrl);
   const symbols = normalizeSymbolList(formData.get("symbols"));
   const symbolMarketMap = parseSymbolMarketMap(formData.get("symbol_markets"));
   const market = normalizeText(formData.get("market"))?.toUpperCase() ?? "US";
@@ -117,7 +103,7 @@ export async function createQuickPost(
     return { error: "请选择有效的内容类型。" };
   }
 
-  if (normalizeText(formData.get("source_url")) && !sourceUrl) {
+  if (rawSourceUrl && !sourceUrl) {
     return { error: "来源链接必须是有效的 http 或 https 地址。" };
   }
 

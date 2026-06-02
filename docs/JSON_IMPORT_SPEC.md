@@ -50,8 +50,8 @@ Supported quick post JSON format:
     }
   ],
   "postType": "idea",
-  "sourceUrl": "",
-  "referencePrice": null,
+  "sourceUrl": "https://x.com/xiaomustock/status/2061478429178896831",
+  "referencePrice": 15.8117,
   "referenceCurrency": "USD",
   "tags": []
 }
@@ -65,6 +65,11 @@ Validation and normalization:
 - `symbols` may be omitted or empty.
 - `symbols` should be an array of `{ "symbol": "...", "market": "..." }` objects.
 - `postType` is normalized to one of: `idea`, `link`, `news`, `review`, `other`.
+- `sourceUrl` should be a pure `http` or `https` URL string.
+- Do not use Markdown link format such as `[text](url)` in `sourceUrl`.
+- Do not mix line breaks, ticker symbols, or other text into `sourceUrl`.
+- If `sourceUrl` arrives in Markdown or messy text form, the importer attempts to extract and save the first valid URL instead of failing the whole import.
+- If no valid URL can be extracted, the draft keeps `sourceUrl` empty and shows a manual review warning in preview.
 - `referencePrice` may be a non-negative number or `null`.
 - `referenceCurrency` defaults to `USD`.
 - `tags` are ignored safely for persistence in the current implementation.

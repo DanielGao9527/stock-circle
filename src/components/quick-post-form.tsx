@@ -9,6 +9,7 @@ import {
   type PostType,
   type QuickPostActionState,
 } from "@/lib/posts/types";
+import { normalizeUrl, normalizeUrlWithMeta } from "@/lib/url/normalize-url";
 
 type QuickMode = "paste" | "ai" | "json" | "manual";
 
@@ -17,6 +18,7 @@ type Draft = {
   content: string;
   post_type: PostType;
   source_url: string;
+  source_url_status: "cleaned" | "invalid" | null;
   symbols: string;
   symbol_markets: string;
   market: string;
@@ -52,6 +54,7 @@ const emptyDraft: Draft = {
   content: "",
   post_type: "idea",
   source_url: "",
+  source_url_status: null,
   symbols: "",
   symbol_markets: "",
   market: "US",
@@ -61,14 +64,17 @@ const emptyDraft: Draft = {
 };
 
 const aiJsonPromptTemplate = `请把下面的推文、文章、聊天记录或股票相关文字整理成 StockCircle JSON。
-
 要求：
 - 只输出 JSON，不要输出解释文字。
 - 不要给投资建议，不要判断买入/卖出，不要推断情绪或投资方向。
 - 如果无法确定字段，请留空字符串、空数组或 null。
 - postType 只能是 idea、link、news、review、other 之一。
 - symbols 使用对象数组，每个对象包含 symbol 和 market。
-
+- sourceUrl 必须是纯 URL 字符串。
+- sourceUrl 不允许使用 Markdown 链接格式，不要输出 [text](url)。
+- sourceUrl 不允许混入换行、股票代码或其他文字。
+- 正确格式只能是: "sourceUrl": "https://x.com/xiaomustock/status/2061478429178896831"
+- referencePrice 必须保持数字类型，例如 15.8117。
 JSON 格式：
 {
   "type": "post",
@@ -82,14 +88,13 @@ JSON 格式：
     }
   ],
   "postType": "idea",
-  "sourceUrl": "",
-  "referencePrice": null,
+  "sourceUrl": "https://x.com/xiaomustock/status/2061478429178896831",
+  "referencePrice": 15.8117,
   "referenceCurrency": "USD",
   "tags": []
 }
 
-原始内容：
-[在这里粘贴原文]`;
+原始内容：[在这里粘贴原文]`;
 
 function toText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -129,11 +134,6 @@ function normalizeSymbols(value: string) {
   ).join(", ");
 }
 
-function extractFirstUrl(text: string) {
-  const match = text.match(/https?:\/\/[^\s，。！？、)）\]}]+/i);
-  return match?.[0] ?? "";
-}
-
 function detectSymbols(text: string) {
   const textWithoutUrls = text.replace(/https?:\/\/\S+/gi, " ");
   const matches = textWithoutUrls.match(/\b[A-Z]{1,6}(?:\.[A-Z]{1,4})?\b/g) ?? [];
@@ -148,7 +148,7 @@ function generateTitle(content: string) {
   }
 
   const firstSentence = content
-    .split(/[\n。！？.!?]/)
+    .split(/[\n。！？?!]/)
     .map((part) => part.trim())
     .find(Boolean);
 
@@ -264,6 +264,12 @@ function DraftPreview({
           defaultValue={draft.source_url}
           className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         />
+        {draft.source_url_status === "cleaned" ? (
+          <p className="text-sm text-amber-700">已自动清洗链接</p>
+        ) : null}
+        {draft.source_url_status === "invalid" ? (
+          <p className="text-sm text-red-600">未识别到有效链接，请手动检查 sourceUrl。</p>
+        ) : null}
       </label>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -340,7 +346,7 @@ function QuickPasteMode({
       return;
     }
 
-    const sourceUrl = extractFirstUrl(content);
+    const sourceUrl = normalizeUrl(content) ?? "";
     const detectedSymbols = detectSymbols(content);
     const symbols = normalizeSymbols([manualSymbols, detectedSymbols.join(",")].filter(Boolean).join(","));
 
@@ -351,6 +357,7 @@ function QuickPasteMode({
       content,
       post_type: selectedType || (sourceUrl ? "link" : "idea"),
       source_url: sourceUrl,
+      source_url_status: null,
       symbols,
       symbol_markets: symbols
         ? JSON.stringify(symbols.split(",").map((symbol) => ({ symbol: symbol.trim(), market: "US" })))
@@ -544,13 +551,21 @@ function AiJsonImportMode({
 
     const symbols = symbolsFromJson(parsed.symbols);
     const postType = parsed.postType === undefined ? "idea" : normalizePostType(parsed.postType);
+    const normalizedSourceUrl = normalizeUrlWithMeta(toText(parsed.sourceUrl));
 
     setError("");
     onDraft({
       title: toText(parsed.title) || generateTitle(content),
       content,
       post_type: postType,
-      source_url: toText(parsed.sourceUrl),
+      source_url: normalizedSourceUrl.value ?? "",
+      source_url_status: normalizedSourceUrl.hadInput
+        ? normalizedSourceUrl.value
+          ? normalizedSourceUrl.wasCleaned
+            ? "cleaned"
+            : null
+          : "invalid"
+        : null,
       symbols: symbols.symbols,
       symbol_markets: symbols.symbolMarkets,
       market: symbols.firstMarket,
@@ -590,7 +605,7 @@ function AiJsonImportMode({
           <textarea
             readOnly
             value={aiJsonPromptTemplate}
-            rows={10}
+            rows={14}
             className="w-full resize-y rounded-xl border border-zinc-300 bg-white px-3 py-3 font-mono text-xs leading-5 text-zinc-700"
           />
           {copyMessage ? <p className="mt-2 text-sm text-zinc-500">{copyMessage}</p> : null}
@@ -601,7 +616,7 @@ function AiJsonImportMode({
         value={jsonText}
         onChange={(event) => setJsonText(event.target.value)}
         rows={12}
-        placeholder={`{\n  "type": "post",\n  "title": "",\n  "summary": "",\n  "content": "",\n  "symbols": [\n    {\n      "symbol": "MU",\n      "market": "US"\n    }\n  ],\n  "postType": "idea",\n  "sourceUrl": "",\n  "referencePrice": null,\n  "referenceCurrency": "USD",\n  "tags": []\n}`}
+        placeholder={`{\n  "type": "post",\n  "title": "",\n  "summary": "",\n  "content": "",\n  "symbols": [\n    {\n      "symbol": "MU",\n      "market": "US"\n    }\n  ],\n  "postType": "idea",\n  "sourceUrl": "https://x.com/xiaomustock/status/2061478429178896831",\n  "referencePrice": 15.8117,\n  "referenceCurrency": "USD",\n  "tags": []\n}`}
         className="w-full resize-y rounded-xl border border-zinc-300 px-3 py-3 font-mono text-sm leading-6 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
       />
 
@@ -788,8 +803,7 @@ export function QuickPostForm() {
         <div className="mt-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-3">
           <div className="text-sm font-medium text-zinc-700">AI 解析 · Coming Soon</div>
           <p className="mt-1 text-sm leading-6 text-zinc-600">
-            未来可以直接粘贴推文、文章、聊天记录或持仓文字，系统会自动调用 AI
-            生成结构化草稿。当前版本不会调用任何 AI API。
+            未来可以直接粘贴推文、文章、聊天记录或持仓文字，系统会自动调用 AI 生成结构化草稿。当前版本不会调用任何 AI API。
           </p>
         </div>
       </div>

@@ -135,6 +135,14 @@ Deliverables:
 - Stability fixes and documentation updates
 - MVP release checklist completion
 
+## Daily Email Digest
+
+- Daily email digest is implemented with Resend.
+- Delivery is triggered by Vercel Cron.
+- The schedule targets roughly 10 minutes before the US market open.
+- The digest contains circle activity summaries only.
+- No AI analysis is included in this email.
+
 ## 4. Suggested Timeline (Small Team)
 
 - Phase 0-1: 1 week

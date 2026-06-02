@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/send-daily-digest",
+      "schedule": "20 13 * * 1-5"
+    },
+    {
+      "path": "/api/cron/send-daily-digest",
+      "schedule": "20 14 * * 1-5"
+    }
+  ]
+}

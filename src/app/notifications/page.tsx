@@ -28,7 +28,7 @@ export default async function NotificationsPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">通知</h1>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
-              查看别人对你的帖子或持仓快照留下的评论回复。
+              查看别人对你的帖子、持仓快照，或评论回复留下的最新互动。
             </p>
           </div>
           {unreadCount > 0 ? (
@@ -61,24 +61,26 @@ export default async function NotificationsPage() {
                 <button
                   type="submit"
                   className={`w-full rounded-2xl border p-4 text-left shadow-sm transition hover:border-blue-200 hover:bg-blue-50/30 md:p-5 ${
-                    unread
-                      ? "border-blue-200 bg-blue-50/60"
-                      : "border-zinc-200 bg-white"
+                    unread ? "border-blue-200 bg-blue-50/60" : "border-zinc-200 bg-white"
                   }`}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
                         <span className="font-medium text-zinc-900">{notification.actorName}</span>
-                        <span>回复了你的</span>
+                        <span>评论了你的内容</span>
                         <span className="rounded-full bg-white px-2 py-0.5 text-zinc-700">
                           {notification.target_type === "post" ? "帖子" : "持仓快照"}
                         </span>
-                        {unread ? (
-                          <span className="rounded-full bg-blue-600 px-2 py-0.5 text-white">
-                            未读
-                          </span>
-                        ) : null}
+                        <span
+                          className={`rounded-full px-2 py-0.5 ${
+                            unread
+                              ? "bg-blue-600 text-white"
+                              : "bg-zinc-100 text-zinc-600"
+                          }`}
+                        >
+                          {unread ? "未读" : "已读"}
+                        </span>
                       </div>
                       <h2 className="mt-2 break-words text-base font-semibold text-zinc-900">
                         {notification.targetTitle}
