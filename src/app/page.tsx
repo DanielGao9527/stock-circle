@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/require-user";
+import { formatPositionChange } from "@/lib/portfolio/position-change";
 import { postTypeLabels, type PostType } from "@/lib/posts/types";
 import { ensureProfile } from "@/lib/profiles/ensure-profile";
 import { createClient } from "@/lib/supabase/server";
@@ -40,6 +41,7 @@ type StockRow = {
 type PortfolioItemRow = {
   snapshot_id: string;
   symbol: string;
+  previous_percent: number | string | null;
   position_percent: number | string;
 };
 
@@ -115,14 +117,16 @@ export default async function Home() {
   const { data: postData, error: postError } = await supabase
     .from("posts")
     .select("id,author_id,title,content,post_type,created_at")
-    .eq("is_deleted", false)
+    .is("deleted_at", null)
+    .neq("status", "hidden")
     .order("created_at", { ascending: false })
     .limit(20);
 
   const { data: snapshotData, error: snapshotError } = await supabase
     .from("portfolio_snapshots")
     .select("id,owner_id,created_by,title,notes,created_at")
-    .eq("is_deleted", false)
+    .is("deleted_at", null)
+    .neq("status", "hidden")
     .order("created_at", { ascending: false })
     .limit(20);
 
@@ -186,7 +190,7 @@ export default async function Home() {
   if (snapshotIds.length > 0) {
     const { data: itemData, error: itemError } = await supabase
       .from("portfolio_items")
-      .select("snapshot_id,symbol,position_percent")
+      .select("snapshot_id,symbol,previous_percent,position_percent")
       .in("snapshot_id", snapshotIds)
       .limit(60);
 
@@ -197,7 +201,7 @@ export default async function Home() {
           map.set(item.snapshot_id, [...currentItems, item]);
         }
         return map;
-      }, new Map<string, SnapshotItemRow[]>());
+      }, new Map<string, PortfolioItemRow[]>());
     }
   }
 
@@ -297,8 +301,8 @@ export default async function Home() {
                           className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs text-zinc-700"
                         >
                           {portfolioItem.symbol}
-                          {portfolioItem.position_percent
-                            ? ` · ${portfolioItem.position_percent}%`
+                          {portfolioItem.position_percent !== null
+                            ? ` · ${formatPositionChange(portfolioItem.previous_percent, portfolioItem.position_percent)}`
                             : ""}
                         </span>
                       ))}

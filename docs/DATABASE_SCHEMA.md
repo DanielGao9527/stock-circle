@@ -75,9 +75,18 @@ Key columns:
 - `market text not null default 'US'`
 - `reference_price numeric(20,6) null`
 - `reference_currency text not null default 'USD'`
+- `status text default 'published'`
+- `visibility text default 'group'`
+- `deleted_at timestamptz null`
 - `is_deleted boolean default false`
 - `created_at timestamptz default now()`
 - `updated_at timestamptz default now()`
+
+Soft delete behavior:
+
+- Delete actions set `deleted_at = now()` and `status = 'hidden'`.
+- Normal post queries should filter `deleted_at is null` and `status <> 'hidden'`.
+- `is_deleted` remains for backward compatibility with early migrations.
 
 #### post_stocks
 
@@ -105,9 +114,17 @@ Key columns:
 - `title text null`
 - `notes text null`
 - `created_by uuid not null`
+- `status text default 'published'`
+- `deleted_at timestamptz null`
 - `is_deleted boolean default false`
 - `created_at timestamptz default now()`
 - `updated_at timestamptz default now()`
+
+Soft delete behavior:
+
+- Delete actions set `deleted_at = now()` and `status = 'hidden'`.
+- Normal snapshot queries should filter `deleted_at is null` and `status <> 'hidden'`.
+- `is_deleted` remains for backward compatibility with early migrations.
 
 Indexes:
 
@@ -143,7 +160,10 @@ Key columns:
 - `stock_id uuid not null` -> `stocks.id`
 - `symbol text not null`
 - `market text default 'US'`
+- `previous_percent numeric(8,4) null`
 - `position_percent numeric(8,4) not null`
+- `action_type text null`
+- `change_reason text null`
 - `cost_price numeric(20,6) null`
 - `reference_price numeric(20,6) null`
 - `currency text default 'USD'`
@@ -154,8 +174,15 @@ Key columns:
 Constraints:
 
 - `position_percent >= 0`
+- `previous_percent is null or previous_percent >= 0`
 - `cost_price is null or cost_price >= 0`
 - `reference_price is null or reference_price >= 0`
+
+Position change behavior:
+
+- `previous_percent` is the before-change position.
+- `position_percent` is the after-change/current position.
+- If `action_type` is empty, the application infers `new`, `increase`, `reduce`, `hold`, or `clear`.
 
 Indexes:
 

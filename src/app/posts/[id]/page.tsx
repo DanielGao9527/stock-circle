@@ -43,6 +43,8 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
       "id,title,content,post_type,source_url,market,reference_price,reference_currency,created_at",
     )
     .eq("id", id)
+    .is("deleted_at", null)
+    .neq("status", "hidden")
     .maybeSingle();
 
   if (postError) {

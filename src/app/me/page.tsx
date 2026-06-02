@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
 import { requireUser } from "@/lib/auth/require-user";
 
@@ -30,6 +31,17 @@ export default async function MePage() {
         <div className="mt-5">
           <SignOutButton />
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold">内容管理</h2>
+        <p className="mt-2 text-sm text-zinc-600">查看、编辑或删除你自己发布的帖子。</p>
+        <Link
+          href="/me/posts"
+          className="mt-4 inline-flex rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+        >
+          我的帖子
+        </Link>
       </div>
     </section>
   );

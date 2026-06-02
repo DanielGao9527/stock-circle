@@ -159,6 +159,8 @@ export async function createQuickPost(
         market,
         reference_price: referencePrice,
         reference_currency: referenceCurrency,
+        status: "published",
+        visibility: "group",
       })
       .select("id")
       .single();

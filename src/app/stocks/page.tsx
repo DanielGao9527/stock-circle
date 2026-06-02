@@ -29,6 +29,7 @@ type SnapshotItemRow = {
   snapshot_id: string;
   symbol: string;
   market: string | null;
+  position_percent: number | string | null;
 };
 
 type StockCard = {
@@ -45,6 +46,10 @@ function stockKey(market: string, symbol: string) {
 
 function stockHref(market: string, symbol: string) {
   return `/stocks/${encodeURIComponent(market.toUpperCase())}/${encodeURIComponent(symbol.toUpperCase())}`;
+}
+
+function isCurrentHolding(positionPercent: number | string | null) {
+  return Number(positionPercent) > 0;
 }
 
 export default async function StocksPage() {
@@ -67,7 +72,11 @@ export default async function StocksPage() {
   const stocks = (stockData ?? []) as StockRow[];
   const stockById = new Map(stocks.map((stock) => [stock.id, stock]));
 
-  const { data: postData } = await supabase.from("posts").select("id").eq("is_deleted", false);
+  const { data: postData } = await supabase
+    .from("posts")
+    .select("id")
+    .is("deleted_at", null)
+    .neq("status", "hidden");
   const activePostIds = new Set(((postData ?? []) as PostRow[]).map((post) => post.id));
 
   const { data: relationData } = await supabase
@@ -93,7 +102,8 @@ export default async function StocksPage() {
   const { data: snapshotData } = await supabase
     .from("portfolio_snapshots")
     .select("id,owner_id,created_by,created_at")
-    .eq("is_deleted", false)
+    .is("deleted_at", null)
+    .neq("status", "hidden")
     .order("created_at", { ascending: false })
     .limit(200);
   const snapshots = (snapshotData ?? []) as SnapshotRow[];
@@ -113,7 +123,7 @@ export default async function StocksPage() {
   if (snapshotIds.length > 0) {
     const { data: itemData } = await supabase
       .from("portfolio_items")
-      .select("snapshot_id,symbol,market")
+      .select("snapshot_id,symbol,market,position_percent")
       .in("snapshot_id", snapshotIds)
       .limit(500);
 
@@ -129,7 +139,7 @@ export default async function StocksPage() {
     const snapshot = snapshots.find((candidate) => candidate.id === item.snapshot_id);
     const userId = snapshot?.owner_id ?? snapshot?.created_by;
 
-    if (!userId) {
+    if (!userId || !isCurrentHolding(item.position_percent)) {
       return map;
     }
 

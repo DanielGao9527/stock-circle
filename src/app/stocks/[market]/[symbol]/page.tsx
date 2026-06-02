@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/require-user";
+import { actionTypeLabels, formatPositionChange } from "@/lib/portfolio/position-change";
 import { postTypeLabels, type PostType } from "@/lib/posts/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -42,7 +43,10 @@ type SnapshotItemRow = {
   snapshot_id: string;
   symbol: string;
   market: string | null;
+  previous_percent: number | string | null;
   position_percent: number | string;
+  action_type: string | null;
+  change_reason: string | null;
   cost_price: number | string | null;
   reference_price: number | string | null;
   currency: string | null;
@@ -84,6 +88,10 @@ function formatDate(value: string | null) {
 
 function getUserId(snapshot: SnapshotRow) {
   return snapshot.owner_id ?? snapshot.created_by;
+}
+
+function isCurrentHolding(positionPercent: number | string) {
+  return Number(positionPercent) > 0;
 }
 
 async function getProfiles(
@@ -132,7 +140,8 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
         .from("posts")
         .select("id,author_id,title,content,post_type,created_at")
         .in("id", postIds)
-        .eq("is_deleted", false)
+        .is("deleted_at", null)
+        .neq("status", "hidden")
         .order("created_at", { ascending: false });
 
       posts = (postData ?? []) as PostRow[];
@@ -142,7 +151,8 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
   const { data: snapshotData } = await supabase
     .from("portfolio_snapshots")
     .select("id,owner_id,created_by,title,snapshot_date,created_at")
-    .eq("is_deleted", false)
+    .is("deleted_at", null)
+    .neq("status", "hidden")
     .order("created_at", { ascending: false })
     .limit(200);
   const snapshots = (snapshotData ?? []) as SnapshotRow[];
@@ -159,7 +169,7 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
   const { data: itemData } = await supabase
     .from("portfolio_items")
     .select(
-      "id,snapshot_id,symbol,market,position_percent,cost_price,reference_price,currency,note,created_at",
+      "id,snapshot_id,symbol,market,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,note,created_at",
     )
     .eq("symbol", symbol)
     .order("created_at", { ascending: false })
@@ -173,7 +183,7 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
   );
   const holderEntriesByUser = relatedItems.reduce(
     (map, item) => {
-      if (!latestSnapshotIds.has(item.snapshot_id)) {
+      if (!latestSnapshotIds.has(item.snapshot_id) || !isCurrentHolding(item.position_percent)) {
         return map;
       }
 
@@ -257,7 +267,7 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
                   {profiles.get(userId) ?? `成员 ${userId.slice(0, 8)}`}
                 </div>
                 <div className="mt-2 text-sm text-zinc-600">
-                  仓位：{item.position_percent}%
+                  仓位：{formatPositionChange(item.previous_percent, item.position_percent)}
                 </div>
                 <div className="mt-1 text-xs text-zinc-500">
                   {snapshot.title ?? "未命名持仓快照"} · {formatDate(snapshot.snapshot_date)}
@@ -287,8 +297,10 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
                   </div>
                   <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
                     <div className="rounded-lg bg-zinc-50 p-3">
-                      <div className="text-zinc-500">仓位</div>
-                      <div className="mt-1 text-zinc-900">{item.position_percent}%</div>
+                      <div className="text-zinc-500">仓位变化</div>
+                      <div className="mt-1 text-zinc-900">
+                        {formatPositionChange(item.previous_percent, item.position_percent)}
+                      </div>
                     </div>
                     <div className="rounded-lg bg-zinc-50 p-3">
                       <div className="text-zinc-500">成本价</div>
@@ -303,8 +315,18 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
                       </div>
                     </div>
                   </div>
+                  {item.action_type ? (
+                    <div className="mt-3 inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
+                      {actionTypeLabels[item.action_type] ?? item.action_type}
+                    </div>
+                  ) : null}
                   {item.note ? (
                     <p className="mt-3 text-sm leading-6 text-zinc-600">{item.note}</p>
+                  ) : null}
+                  {item.change_reason ? (
+                    <p className="mt-2 text-sm leading-6 text-zinc-600">
+                      变化原因：{item.change_reason}
+                    </p>
                   ) : null}
                 </div>
               );

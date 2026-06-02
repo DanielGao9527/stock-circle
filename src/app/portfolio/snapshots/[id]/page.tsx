@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PortfolioSnapshotDeleteButton } from "@/components/portfolio-snapshot-delete-button";
 import { requireUser } from "@/lib/auth/require-user";
+import { actionTypeLabels, formatPositionChange } from "@/lib/portfolio/position-change";
 import { createClient } from "@/lib/supabase/server";
 
 type SnapshotRow = {
@@ -16,7 +18,10 @@ type PortfolioItemRow = {
   id: string;
   symbol: string;
   market: string;
+  previous_percent: number | string | null;
   position_percent: number | string;
+  action_type: string | null;
+  change_reason: string | null;
   cost_price: number | string | null;
   reference_price: number | string | null;
   currency: string;
@@ -38,14 +43,15 @@ function formatTime(value: string) {
 
 export default async function SnapshotDetailPage({ params }: SnapshotDetailPageProps) {
   const { id } = await params;
-  await requireUser(`/portfolio/snapshots/${id}`);
+  const user = await requireUser(`/portfolio/snapshots/${id}`);
 
   const supabase = await createClient();
   const { data: snapshotData, error: snapshotError } = await supabase
     .from("portfolio_snapshots")
     .select("id,owner_id,title,notes,snapshot_date,created_at")
     .eq("id", id)
-    .eq("is_deleted", false)
+    .is("deleted_at", null)
+    .neq("status", "hidden")
     .maybeSingle();
 
   if (snapshotError) {
@@ -59,7 +65,9 @@ export default async function SnapshotDetailPage({ params }: SnapshotDetailPageP
   const snapshot = snapshotData as SnapshotRow;
   const { data: itemData, error: itemError } = await supabase
     .from("portfolio_items")
-    .select("id,symbol,market,position_percent,cost_price,reference_price,currency,note")
+    .select(
+      "id,symbol,market,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,note",
+    )
     .eq("snapshot_id", id)
     .order("position_percent", { ascending: false });
 
@@ -87,6 +95,18 @@ export default async function SnapshotDetailPage({ params }: SnapshotDetailPageP
           </Link>
         </div>
 
+        {snapshot.owner_id === user.id ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href={`/portfolio/snapshots/${snapshot.id}/edit`}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
+            >
+              编辑
+            </Link>
+            <PortfolioSnapshotDeleteButton snapshotId={snapshot.id} />
+          </div>
+        ) : null}
+
         {snapshot.notes ? (
           <p className="mt-4 text-sm leading-6 text-zinc-600">{snapshot.notes}</p>
         ) : null}
@@ -111,11 +131,23 @@ export default async function SnapshotDetailPage({ params }: SnapshotDetailPageP
                     {item.market}
                   </span>
                 </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="font-medium text-zinc-900">
+                    {formatPositionChange(item.previous_percent, item.position_percent)}
+                  </span>
+                  {item.action_type ? (
+                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
+                      {actionTypeLabels[item.action_type] ?? item.action_type}
+                    </span>
+                  ) : null}
+                </div>
 
                 <div className="mt-3 grid gap-2 text-sm md:grid-cols-4">
                   <div className="rounded-lg bg-zinc-50 p-3">
-                    <div className="text-zinc-500">仓位</div>
-                    <div className="mt-1 font-medium text-zinc-900">{item.position_percent}%</div>
+                    <div className="text-zinc-500">仓位变化</div>
+                    <div className="mt-1 font-medium text-zinc-900">
+                      {formatPositionChange(item.previous_percent, item.position_percent)}
+                    </div>
                   </div>
                   <div className="rounded-lg bg-zinc-50 p-3">
                     <div className="text-zinc-500">成本价</div>
@@ -133,6 +165,11 @@ export default async function SnapshotDetailPage({ params }: SnapshotDetailPageP
 
                 {item.note ? (
                   <p className="mt-3 text-sm leading-6 text-zinc-600">{item.note}</p>
+                ) : null}
+                {item.change_reason ? (
+                  <p className="mt-2 text-sm leading-6 text-zinc-600">
+                    变化原因：{item.change_reason}
+                  </p>
                 ) : null}
               </div>
             ))}

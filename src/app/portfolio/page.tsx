@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { PortfolioSnapshotDeleteButton } from "@/components/portfolio-snapshot-delete-button";
 import { PortfolioSnapshotForm } from "@/components/portfolio-snapshot-form";
 import { requireUser } from "@/lib/auth/require-user";
+import { formatPositionChange } from "@/lib/portfolio/position-change";
 import { createClient } from "@/lib/supabase/server";
 
 type SnapshotRow = {
@@ -15,6 +17,7 @@ type PortfolioItemRow = {
   snapshot_id: string;
   symbol: string;
   market: string;
+  previous_percent: number | string | null;
   position_percent: number | string;
 };
 
@@ -29,6 +32,57 @@ function getSnapshotTitle(snapshot: SnapshotRow) {
   return snapshot.title ?? "未命名持仓快照";
 }
 
+function SnapshotCard({
+  snapshot,
+  items,
+  highlight = false,
+}: {
+  snapshot: SnapshotRow;
+  items: PortfolioItemRow[];
+  highlight?: boolean;
+}) {
+  return (
+    <article className="mt-4 rounded-xl border border-zinc-200 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-medium">{getSnapshotTitle(snapshot)}</h3>
+        <span className="text-xs text-zinc-500">{formatTime(snapshot.created_at)}</span>
+      </div>
+      {snapshot.notes ? (
+        <p className="mt-2 text-sm leading-6 text-zinc-600">{snapshot.notes}</p>
+      ) : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {items.slice(0, 5).map((item) => (
+          <span
+            key={`${snapshot.id}-${item.symbol}-${item.market}`}
+            className={`rounded-full border px-2 py-0.5 text-xs ${
+              highlight
+                ? "border-blue-100 bg-blue-50 text-blue-700"
+                : "border-zinc-200 text-zinc-700"
+            }`}
+          >
+            {item.symbol} · {formatPositionChange(item.previous_percent, item.position_percent)}
+          </span>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Link
+          href={`/portfolio/snapshots/${snapshot.id}`}
+          className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
+        >
+          查看
+        </Link>
+        <Link
+          href={`/portfolio/snapshots/${snapshot.id}/edit`}
+          className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
+        >
+          编辑
+        </Link>
+        <PortfolioSnapshotDeleteButton snapshotId={snapshot.id} />
+      </div>
+    </article>
+  );
+}
+
 export default async function PortfolioPage() {
   const user = await requireUser("/portfolio");
   const supabase = await createClient();
@@ -37,7 +91,8 @@ export default async function PortfolioPage() {
     .from("portfolio_snapshots")
     .select("id,title,notes,snapshot_date,created_at")
     .eq("owner_id", user.id)
-    .eq("is_deleted", false)
+    .is("deleted_at", null)
+    .neq("status", "hidden")
     .order("created_at", { ascending: false });
 
   if (snapshotError) {
@@ -57,7 +112,7 @@ export default async function PortfolioPage() {
   if (snapshotIds.length > 0) {
     const { data: itemData } = await supabase
       .from("portfolio_items")
-      .select("snapshot_id,symbol,market,position_percent")
+      .select("snapshot_id,symbol,market,previous_percent,position_percent")
       .in("snapshot_id", snapshotIds);
 
     itemsBySnapshot = ((itemData ?? []) as PortfolioItemRow[]).reduce((map, item) => {
@@ -79,28 +134,11 @@ export default async function PortfolioPage() {
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold">最新快照</h2>
         {latestSnapshot ? (
-          <Link
-            href={`/portfolio/snapshots/${latestSnapshot.id}`}
-            className="mt-4 block rounded-xl border border-zinc-200 p-4 transition hover:border-blue-200 hover:bg-blue-50/30"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-medium">{getSnapshotTitle(latestSnapshot)}</h3>
-              <span className="text-xs text-zinc-500">{formatTime(latestSnapshot.created_at)}</span>
-            </div>
-            {latestSnapshot.notes ? (
-              <p className="mt-2 text-sm leading-6 text-zinc-600">{latestSnapshot.notes}</p>
-            ) : null}
-            <div className="mt-3 flex flex-wrap gap-2">
-              {(itemsBySnapshot.get(latestSnapshot.id) ?? []).slice(0, 5).map((item) => (
-                <span
-                  key={`${item.symbol}-${item.market}`}
-                  className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-xs text-blue-700"
-                >
-                  {item.symbol} · {item.position_percent}%
-                </span>
-              ))}
-            </div>
-          </Link>
+          <SnapshotCard
+            snapshot={latestSnapshot}
+            items={itemsBySnapshot.get(latestSnapshot.id) ?? []}
+            highlight
+          />
         ) : (
           <p className="mt-3 text-sm text-zinc-600">还没有持仓快照。</p>
         )}
@@ -115,26 +153,11 @@ export default async function PortfolioPage() {
         ) : (
           <div className="mt-4 space-y-3">
             {previousSnapshots.map((snapshot) => (
-              <Link
+              <SnapshotCard
                 key={snapshot.id}
-                href={`/portfolio/snapshots/${snapshot.id}`}
-                className="block rounded-xl border border-zinc-200 p-4 transition hover:border-blue-200 hover:bg-blue-50/30"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="font-medium">{getSnapshotTitle(snapshot)}</h3>
-                  <span className="text-xs text-zinc-500">{formatTime(snapshot.created_at)}</span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {(itemsBySnapshot.get(snapshot.id) ?? []).slice(0, 5).map((item) => (
-                    <span
-                      key={`${item.symbol}-${item.market}`}
-                      className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs text-zinc-700"
-                    >
-                      {item.symbol} · {item.position_percent}%
-                    </span>
-                  ))}
-                </div>
-              </Link>
+                snapshot={snapshot}
+                items={itemsBySnapshot.get(snapshot.id) ?? []}
+              />
             ))}
           </div>
         )}

@@ -1,17 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { createPortfolioSnapshot } from "@/app/portfolio/actions";
+import { updatePortfolioSnapshot } from "@/app/portfolio/actions";
 
-type PortfolioRow = {
-  id: number;
+type SnapshotFormRow = {
+  id: string;
+  symbol: string;
+  market: string;
+  previous_percent: number | string | null;
+  position_percent: number | string;
+  action_type: string | null;
+  change_reason: string | null;
+  cost_price: number | string | null;
+  reference_price: number | string | null;
+  currency: string;
+  note: string | null;
 };
 
-const initialState = {
-  error: undefined,
+type PortfolioSnapshotEditFormProps = {
+  snapshot: {
+    id: string;
+    title: string | null;
+    notes: string | null;
+  };
+  items: SnapshotFormRow[];
 };
+
+const initialState = {};
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -22,20 +38,53 @@ function SubmitButton() {
       disabled={pending}
       className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400 md:w-auto"
     >
-      {pending ? "保存中..." : "保存快照"}
+      {pending ? "保存中..." : "保存修改"}
     </button>
   );
 }
 
-export function PortfolioSnapshotForm() {
-  const [rows, setRows] = useState<PortfolioRow[]>([{ id: Date.now() }]);
-  const [state, formAction] = useActionState(createPortfolioSnapshot, initialState);
+export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshotEditFormProps) {
+  const [rows, setRows] = useState<SnapshotFormRow[]>(
+    items.length > 0
+      ? items
+      : [
+          {
+            id: "new-0",
+            symbol: "",
+            market: "US",
+            previous_percent: "",
+            position_percent: "",
+            action_type: "",
+            change_reason: "",
+            cost_price: "",
+            reference_price: "",
+            currency: "USD",
+            note: "",
+          },
+        ],
+  );
+  const [state, formAction] = useActionState(updatePortfolioSnapshot, initialState);
 
   function addRow() {
-    setRows((currentRows) => [...currentRows, { id: Date.now() + currentRows.length }]);
+    setRows((currentRows) => [
+      ...currentRows,
+      {
+        id: `new-${Date.now()}-${currentRows.length}`,
+        symbol: "",
+        market: "US",
+        previous_percent: "",
+        position_percent: "",
+        action_type: "",
+        change_reason: "",
+        cost_price: "",
+        reference_price: "",
+        currency: "USD",
+        note: "",
+      },
+    ]);
   }
 
-  function removeRow(rowId: number) {
+  function removeRow(rowId: string) {
     setRows((currentRows) =>
       currentRows.length === 1 ? currentRows : currentRows.filter((row) => row.id !== rowId),
     );
@@ -43,12 +92,7 @@ export function PortfolioSnapshotForm() {
 
   return (
     <form action={formAction} className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">新建持仓快照</h2>
-        <p className="mt-2 text-sm leading-6 text-zinc-600">
-          记录当前组合的大致仓位，用于之后回顾，不用于精确收益计算。
-        </p>
-      </div>
+      <input type="hidden" name="snapshot_id" value={snapshot.id} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="block space-y-1">
@@ -56,7 +100,7 @@ export function PortfolioSnapshotForm() {
           <input
             name="title"
             type="text"
-            placeholder="例如：2026 年 6 月组合"
+            defaultValue={snapshot.title ?? ""}
             className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           />
         </label>
@@ -66,7 +110,7 @@ export function PortfolioSnapshotForm() {
           <input
             name="note"
             type="text"
-            placeholder="例如：加仓半导体，降低现金比例"
+            defaultValue={snapshot.notes ?? ""}
             className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           />
         </label>
@@ -74,7 +118,7 @@ export function PortfolioSnapshotForm() {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-base font-medium">持仓明细</h3>
+          <h2 className="text-base font-medium">持仓明细</h2>
           <button
             type="button"
             onClick={addRow}
@@ -104,7 +148,7 @@ export function PortfolioSnapshotForm() {
                 <input
                   name="symbol"
                   type="text"
-                  placeholder="NVDA"
+                  defaultValue={row.symbol}
                   required={index === 0}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm uppercase outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
@@ -115,7 +159,7 @@ export function PortfolioSnapshotForm() {
                 <input
                   name="market"
                   type="text"
-                  defaultValue="US"
+                  defaultValue={row.market}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm uppercase outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
@@ -127,7 +171,7 @@ export function PortfolioSnapshotForm() {
                   type="number"
                   min="0"
                   step="0.0001"
-                  placeholder="25"
+                  defaultValue={row.position_percent}
                   required={index === 0}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
@@ -146,7 +190,7 @@ export function PortfolioSnapshotForm() {
                     type="number"
                     min="0"
                     step="0.0001"
-                    placeholder="例如：10"
+                    defaultValue={row.previous_percent ?? ""}
                     className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
@@ -155,7 +199,7 @@ export function PortfolioSnapshotForm() {
                   <span className="text-sm font-medium">操作类型</span>
                   <select
                     name="action_type"
-                    defaultValue=""
+                    defaultValue={row.action_type ?? ""}
                     className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">自动推断</option>
@@ -172,7 +216,7 @@ export function PortfolioSnapshotForm() {
                   <input
                     name="change_reason"
                     type="text"
-                    placeholder="例如：财报后提高权重"
+                    defaultValue={row.change_reason ?? ""}
                     className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
@@ -187,6 +231,7 @@ export function PortfolioSnapshotForm() {
                   type="number"
                   min="0"
                   step="0.000001"
+                  defaultValue={row.cost_price ?? ""}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
@@ -198,6 +243,7 @@ export function PortfolioSnapshotForm() {
                   type="number"
                   min="0"
                   step="0.000001"
+                  defaultValue={row.reference_price ?? ""}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
@@ -207,7 +253,7 @@ export function PortfolioSnapshotForm() {
                 <input
                   name="currency"
                   type="text"
-                  defaultValue="USD"
+                  defaultValue={row.currency}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm uppercase outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
@@ -218,7 +264,7 @@ export function PortfolioSnapshotForm() {
               <input
                 name="item_note"
                 type="text"
-                placeholder="例如：核心仓位，长期观察"
+                defaultValue={row.note ?? ""}
                 className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </label>
