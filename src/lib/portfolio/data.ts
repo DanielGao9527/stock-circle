@@ -15,6 +15,11 @@ export type PortfolioItemRow = {
   snapshot_id: string;
   symbol: string;
   market: string | null;
+  asset_type: string | null;
+  underlying_symbol: string | null;
+  option_type: string | null;
+  strike_price: number | string | null;
+  expiration_date: string | null;
   previous_percent: number | string | null;
   position_percent: number | string;
   action_type: string | null;
@@ -108,7 +113,7 @@ export async function getPortfolioItemsForSnapshots(
   const { data, error } = await supabase
     .from("portfolio_items")
     .select(
-      "id,snapshot_id,symbol,market,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,note,created_at",
+      "id,snapshot_id,symbol,market,asset_type,underlying_symbol,option_type,strike_price,expiration_date,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,note,created_at",
     )
     .in("snapshot_id", snapshotIds)
     .order("position_percent", { ascending: false });

@@ -15,6 +15,11 @@ type PortfolioItemRow = {
   id: string;
   symbol: string;
   market: string;
+  asset_type: "stock" | "option" | null;
+  underlying_symbol: string | null;
+  option_type: "call" | "put" | null;
+  strike_price: number | string | null;
+  expiration_date: string | null;
   previous_percent: number | string | null;
   position_percent: number | string;
   action_type: string | null;
@@ -57,7 +62,7 @@ export default async function SnapshotEditPage({ params }: SnapshotEditPageProps
   const { data: itemData, error: itemError } = await supabase
     .from("portfolio_items")
     .select(
-      "id,symbol,market,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,note",
+      "id,symbol,market,asset_type,underlying_symbol,option_type,strike_price,expiration_date,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,note",
     )
     .eq("snapshot_id", id)
     .order("position_percent", { ascending: false });

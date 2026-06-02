@@ -3,6 +3,11 @@ import { notFound } from "next/navigation";
 import { PortfolioSnapshotDeleteButton } from "@/components/portfolio-snapshot-delete-button";
 import { requireUser } from "@/lib/auth/require-user";
 import {
+  getPortfolioItemDisplayName,
+  getPortfolioItemKindLabel,
+  isOptionItem,
+} from "@/lib/portfolio/item-display";
+import {
   getActivePortfolioSnapshots,
   getPortfolioItemsForSnapshots,
   getPortfolioProfileMap,
@@ -79,7 +84,8 @@ function SnapshotPreviewCard({
               key={item.id}
               className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-sm text-zinc-700"
             >
-              {item.symbol} · {formatPositionChange(item.previous_percent, item.position_percent)}
+              {getPortfolioItemDisplayName(item)} ·{" "}
+              {formatPositionChange(item.previous_percent, item.position_percent)}
             </span>
           ))}
         </div>
@@ -127,7 +133,7 @@ export default async function PortfolioUserDetailPage({ params }: PortfolioUserD
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">{displayName} 的持仓主页</h1>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
-              查看最新持仓、历史快照和近期调仓记录。只有快照所有者本人可以编辑或删除。
+              查看最新持仓、历史快照和近期仓位变化。股票与期权会分别清晰展示。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -177,23 +183,45 @@ export default async function PortfolioUserDetailPage({ params }: PortfolioUserD
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="font-medium text-zinc-900">
-                      {item.symbol} · {formatPositionChange(item.previous_percent, item.position_percent)}
+                      {getPortfolioItemDisplayName(item)} ·{" "}
+                      {formatPositionChange(item.previous_percent, item.position_percent)}
                     </div>
                     <div className="mt-1 text-sm text-zinc-500">
                       {getSnapshotTitle(snapshot)} · {formatDate(getSnapshotEffectiveDate(snapshot))}
                     </div>
                   </div>
-                  {item.action_type ? (
-                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
-                      {actionTypeLabels[item.action_type] ?? item.action_type}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600">
+                      {getPortfolioItemKindLabel(item)}
                     </span>
-                  ) : null}
+                    {item.action_type ? (
+                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
+                        {actionTypeLabels[item.action_type] ?? item.action_type}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="mt-3 grid gap-2 text-sm md:grid-cols-4">
+                <div
+                  className={`mt-3 grid gap-2 text-sm ${
+                    isOptionItem(item) ? "md:grid-cols-5" : "md:grid-cols-4"
+                  }`}
+                >
                   <div className="rounded-lg bg-zinc-50 p-3">
                     <div className="text-zinc-500">市场</div>
                     <div className="mt-1 text-zinc-900">{item.market ?? "US"}</div>
                   </div>
+                  {isOptionItem(item) ? (
+                    <div className="rounded-lg bg-zinc-50 p-3">
+                      <div className="text-zinc-500">期权方向</div>
+                      <div className="mt-1 text-zinc-900">
+                        {item.option_type === "put"
+                          ? "Put"
+                          : item.option_type === "call"
+                            ? "Call"
+                            : "未填写"}
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="rounded-lg bg-zinc-50 p-3">
                     <div className="text-zinc-500">成本价</div>
                     <div className="mt-1 text-zinc-900">{item.cost_price ?? "未填写"}</div>

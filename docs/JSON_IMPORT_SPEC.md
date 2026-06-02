@@ -126,6 +126,36 @@ Save behavior:
 - Create one `portfolio_items` row per `positions` entry.
 - User can edit the draft table before final save.
 
+### 1.2.1 Option Holdings Extension
+
+Portfolio JSON now supports option holdings in addition to stock holdings.
+
+Recommended option JSON shape:
+
+```json
+{
+  "symbol": "NVDA",
+  "market": "US",
+  "assetType": "option",
+  "optionType": "call",
+  "strikePrice": 120,
+  "expirationDate": "2026-12-18",
+  "positionPercent": 8,
+  "costPrice": 9.8,
+  "currentPrice": 12.1,
+  "currency": "USD",
+  "changeReason": "Use LEAPS for upside convexity"
+}
+```
+
+Notes:
+
+- `assetType` is optional and defaults to `stock`.
+- When `assetType = "option"`, `optionType`, `strikePrice`, and `expirationDate` are required.
+- `symbol` continues to mean the underlying symbol in the current implementation.
+- `currentPrice` is preferred for new payloads.
+- `referencePrice` remains accepted for backward compatibility and maps to the same DB field.
+
 ## 2. General Rules
 
 - Encoding: UTF-8

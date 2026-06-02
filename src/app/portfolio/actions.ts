@@ -22,6 +22,11 @@ type OwnedSnapshotRow = {
 type ParsedItem = {
   symbol: string;
   market: string;
+  assetType: "stock" | "option";
+  underlyingSymbol: string | null;
+  optionType: "call" | "put" | null;
+  strikePrice: number | null;
+  expirationDate: string | null;
   previousPercent: number | null;
   positionPercent: number;
   actionType: string;
@@ -33,9 +38,19 @@ type ParsedItem = {
 };
 
 const actionTypes = ["new", "increase", "reduce", "hold", "clear"] as const;
+const assetTypes = ["stock", "option"] as const;
+const optionTypes = ["call", "put"] as const;
 
 function isActionType(value: string): value is (typeof actionTypes)[number] {
   return actionTypes.includes(value as (typeof actionTypes)[number]);
+}
+
+function isAssetType(value: string): value is (typeof assetTypes)[number] {
+  return assetTypes.includes(value as (typeof assetTypes)[number]);
+}
+
+function isOptionType(value: string): value is (typeof optionTypes)[number] {
+  return optionTypes.includes(value as (typeof optionTypes)[number]);
 }
 
 function inferActionType(previousPercent: number | null, positionPercent: number) {
@@ -74,6 +89,16 @@ function normalizeNumber(value: FormDataEntryValue | null) {
   return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
+function normalizeDateText(value: FormDataEntryValue | null) {
+  const text = normalizeText(value);
+
+  if (!text) {
+    return null;
+  }
+
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
 function getStringValue(values: FormDataEntryValue[], index: number) {
   const value = values[index];
   return typeof value === "string" ? value : "";
@@ -82,6 +107,11 @@ function getStringValue(values: FormDataEntryValue[], index: number) {
 function parseItems(formData: FormData): ParsedItem[] | { error: string } {
   const symbols = formData.getAll("symbol");
   const markets = formData.getAll("market");
+  const assetTypeValues = formData.getAll("asset_type");
+  const underlyingSymbols = formData.getAll("underlying_symbol");
+  const optionTypeValues = formData.getAll("option_type");
+  const strikePrices = formData.getAll("strike_price");
+  const expirationDates = formData.getAll("expiration_date");
   const previousPercents = formData.getAll("previous_percent");
   const positionPercents = formData.getAll("position_percent");
   const actionTypeValues = formData.getAll("action_type");
@@ -95,6 +125,14 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
     .map((_, index) => {
       const symbol = getStringValue(symbols, index).trim().toUpperCase();
       const market = getStringValue(markets, index).trim().toUpperCase() || "US";
+      const rawAssetType = getStringValue(assetTypeValues, index).trim().toLowerCase();
+      const assetType = isAssetType(rawAssetType) ? rawAssetType : "stock";
+      const typedUnderlyingSymbol = getStringValue(underlyingSymbols, index).trim().toUpperCase();
+      const underlyingSymbol = typedUnderlyingSymbol || symbol || null;
+      const rawOptionType = getStringValue(optionTypeValues, index).trim().toLowerCase();
+      const optionType = isOptionType(rawOptionType) ? rawOptionType : null;
+      const strikePrice = normalizeNumber(strikePrices[index]);
+      const expirationDate = normalizeDateText(expirationDates[index]);
       const previousPercent = normalizeNumber(previousPercents[index]);
       const positionPercent = normalizeNumber(positionPercents[index]);
       const rawActionType = getStringValue(actionTypeValues, index).trim();
@@ -113,6 +151,13 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
       return {
         symbol,
         market,
+        assetType,
+        rawAssetType,
+        underlyingSymbol,
+        rawOptionType,
+        optionType,
+        strikePrice,
+        expirationDate,
         previousPercent,
         positionPercent,
         actionType,
@@ -124,6 +169,11 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
         note,
         hasAnyValue:
           symbol ||
+          rawAssetType ||
+          typedUnderlyingSymbol ||
+          rawOptionType ||
+          strikePrice !== null ||
+          expirationDate !== null ||
           previousPercent !== null ||
           positionPercent !== null ||
           rawActionType ||
@@ -142,7 +192,13 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
   const invalidItem = items.find((item) => !item.symbol || item.positionPercent === null);
 
   if (invalidItem) {
-    return { error: "每条持仓明细都需要填写股票代码和仓位百分比。" };
+    return { error: "每条持仓明细都需要填写代码和仓位百分比。" };
+  }
+
+  const invalidAssetType = items.find((item) => item.rawAssetType && !isAssetType(item.rawAssetType));
+
+  if (invalidAssetType) {
+    return { error: "资产类型只能是 stock 或 option。" };
   }
 
   const invalidActionType = items.find(
@@ -153,9 +209,32 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
     return { error: "操作类型只能是 new、increase、reduce、hold 或 clear。" };
   }
 
+  const invalidOptionType = items.find(
+    (item) => item.assetType === "option" && item.rawOptionType && !isOptionType(item.rawOptionType),
+  );
+
+  if (invalidOptionType) {
+    return { error: "期权方向只能是 call 或 put。" };
+  }
+
+  const invalidOptionItem = items.find(
+    (item) =>
+      item.assetType === "option" &&
+      (!item.underlyingSymbol || !item.optionType || item.strikePrice === null || !item.expirationDate),
+  );
+
+  if (invalidOptionItem) {
+    return { error: "期权持仓需要填写标的代码、到期日、行权价和 Call/Put。" };
+  }
+
   return items.map((item) => ({
-    symbol: item.symbol,
+    symbol: item.assetType === "option" ? item.underlyingSymbol ?? item.symbol : item.symbol,
     market: item.market,
+    assetType: item.assetType,
+    underlyingSymbol: item.assetType === "option" ? item.underlyingSymbol ?? item.symbol : item.symbol,
+    optionType: item.assetType === "option" ? item.optionType : null,
+    strikePrice: item.assetType === "option" ? item.strikePrice : null,
+    expirationDate: item.assetType === "option" ? item.expirationDate : null,
     previousPercent: item.previousPercent,
     positionPercent: item.positionPercent!,
     actionType: item.actionType,
@@ -165,6 +244,32 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
     currency: item.currency,
     note: item.note,
   }));
+}
+
+function buildPortfolioItemPayload(
+  snapshotId: string,
+  stockId: string,
+  item: ParsedItem,
+) {
+  return {
+    snapshot_id: snapshotId,
+    stock_id: stockId,
+    symbol: item.symbol,
+    market: item.market,
+    asset_type: item.assetType,
+    underlying_symbol: item.underlyingSymbol,
+    option_type: item.optionType,
+    strike_price: item.strikePrice,
+    expiration_date: item.expirationDate,
+    previous_percent: item.previousPercent,
+    position_percent: item.positionPercent,
+    action_type: item.actionType,
+    change_reason: item.changeReason,
+    cost_price: item.costPrice,
+    reference_price: item.referencePrice,
+    currency: item.currency,
+    note: item.note,
+  };
 }
 
 export async function createPortfolioSnapshot(
@@ -214,21 +319,7 @@ export async function createPortfolioSnapshot(
     const portfolioItems = await Promise.all(
       parsedItems.map(async (item) => {
         const stockId = await getOrCreateStockId(supabase, item.symbol, item.market);
-
-        return {
-          snapshot_id: snapshotId,
-          stock_id: stockId,
-          symbol: item.symbol,
-          market: item.market,
-          previous_percent: item.previousPercent,
-          position_percent: item.positionPercent,
-          action_type: item.actionType,
-          change_reason: item.changeReason,
-          cost_price: item.costPrice,
-          reference_price: item.referencePrice,
-          currency: item.currency,
-          note: item.note,
-        };
+        return buildPortfolioItemPayload(snapshotId, stockId, item);
       }),
     );
 
@@ -331,21 +422,7 @@ export async function updatePortfolioSnapshot(
     const portfolioItems = await Promise.all(
       parsedItems.map(async (item) => {
         const stockId = await getOrCreateStockId(supabase, item.symbol, item.market);
-
-        return {
-          snapshot_id: snapshotId,
-          stock_id: stockId,
-          symbol: item.symbol,
-          market: item.market,
-          previous_percent: item.previousPercent,
-          position_percent: item.positionPercent,
-          action_type: item.actionType,
-          change_reason: item.changeReason,
-          cost_price: item.costPrice,
-          reference_price: item.referencePrice,
-          currency: item.currency,
-          note: item.note,
-        };
+        return buildPortfolioItemPayload(snapshotId, stockId, item);
       }),
     );
 

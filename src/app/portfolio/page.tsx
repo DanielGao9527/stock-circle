@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PortfolioSnapshotDeleteButton } from "@/components/portfolio-snapshot-delete-button";
 import { PortfolioSnapshotForm } from "@/components/portfolio-snapshot-form";
 import { requireUser } from "@/lib/auth/require-user";
+import { getPortfolioItemDisplayName } from "@/lib/portfolio/item-display";
 import { formatPositionChange } from "@/lib/portfolio/position-change";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,9 +15,15 @@ type SnapshotRow = {
 };
 
 type PortfolioItemRow = {
+  id: string;
   snapshot_id: string;
   symbol: string;
   market: string;
+  asset_type: string | null;
+  underlying_symbol: string | null;
+  option_type: string | null;
+  strike_price: number | string | null;
+  expiration_date: string | null;
   previous_percent: number | string | null;
   position_percent: number | string;
 };
@@ -53,14 +60,15 @@ function SnapshotCard({
       <div className="mt-3 flex flex-wrap gap-2">
         {items.slice(0, 5).map((item) => (
           <span
-            key={`${snapshot.id}-${item.symbol}-${item.market}`}
+            key={item.id}
             className={`rounded-full border px-2 py-0.5 text-xs ${
               highlight
                 ? "border-blue-100 bg-blue-50 text-blue-700"
                 : "border-zinc-200 text-zinc-700"
             }`}
           >
-            {item.symbol} · {formatPositionChange(item.previous_percent, item.position_percent)}
+            {getPortfolioItemDisplayName(item)} ·{" "}
+            {formatPositionChange(item.previous_percent, item.position_percent)}
           </span>
         ))}
       </div>
@@ -112,8 +120,11 @@ export default async function PortfolioPage() {
   if (snapshotIds.length > 0) {
     const { data: itemData } = await supabase
       .from("portfolio_items")
-      .select("snapshot_id,symbol,market,previous_percent,position_percent")
-      .in("snapshot_id", snapshotIds);
+      .select(
+        "id,snapshot_id,symbol,market,asset_type,underlying_symbol,option_type,strike_price,expiration_date,previous_percent,position_percent",
+      )
+      .in("snapshot_id", snapshotIds)
+      .order("position_percent", { ascending: false });
 
     itemsBySnapshot = ((itemData ?? []) as PortfolioItemRow[]).reduce((map, item) => {
       const currentItems = map.get(item.snapshot_id) ?? [];
@@ -127,7 +138,7 @@ export default async function PortfolioPage() {
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">持仓</h1>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
-          手动记录组合仓位快照，也支持用 JSON 模板快速导入，方便之后回看当时的配置和想法。
+          手动记录组合仓位快照，也支持用 JSON 模板快速导入。现在同一份快照里可以同时记录股票和期权。
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link

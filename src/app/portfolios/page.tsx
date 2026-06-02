@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/require-user";
+import { getPortfolioItemDisplayName } from "@/lib/portfolio/item-display";
 import {
   getActivePortfolioSnapshots,
   getLatestSnapshotsByUser,
@@ -44,7 +45,7 @@ export default async function PortfoliosPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">圈内持仓</h1>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
-              查看圈内每位成员最新一份持仓快照，快速了解最近的仓位分布和调仓方向。
+              查看圈内成员最新一份持仓快照。股票和期权都会显示在这里。
             </p>
           </div>
           <Link
@@ -58,7 +59,7 @@ export default async function PortfoliosPage() {
 
       {latestEntries.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-6 text-center text-sm text-zinc-600">
-          暂时还没有成员公开出最新持仓快照。
+          暂时还没有成员公开最新持仓快照。
         </div>
       ) : (
         <div className="space-y-4">
@@ -96,7 +97,9 @@ export default async function PortfoliosPage() {
                       {snapshotItems.map((item) => (
                         <div key={item.id} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
                           <div className="flex items-center justify-between gap-3">
-                            <div className="font-medium text-zinc-900">{item.symbol}</div>
+                            <div className="font-medium text-zinc-900">
+                              {getPortfolioItemDisplayName(item)}
+                            </div>
                             <span className="rounded-full bg-white px-2 py-0.5 text-xs text-zinc-600">
                               {item.market ?? "US"}
                             </span>
@@ -112,7 +115,7 @@ export default async function PortfoliosPage() {
                       <table className="min-w-full text-sm">
                         <thead className="text-left text-zinc-500">
                           <tr className="border-b border-zinc-200">
-                            <th className="py-2 pr-4 font-medium">股票</th>
+                            <th className="py-2 pr-4 font-medium">标的</th>
                             <th className="py-2 pr-4 font-medium">市场</th>
                             <th className="py-2 pr-4 font-medium">仓位</th>
                           </tr>
@@ -120,7 +123,9 @@ export default async function PortfoliosPage() {
                         <tbody>
                           {snapshotItems.map((item) => (
                             <tr key={item.id} className="border-b border-zinc-100 last:border-0">
-                              <td className="py-3 pr-4 font-medium text-zinc-900">{item.symbol}</td>
+                              <td className="py-3 pr-4 font-medium text-zinc-900">
+                                {getPortfolioItemDisplayName(item)}
+                              </td>
                               <td className="py-3 pr-4 text-zinc-600">{item.market ?? "US"}</td>
                               <td className="py-3 pr-4 text-zinc-700">
                                 {formatPositionChange(item.previous_percent, item.position_percent)}

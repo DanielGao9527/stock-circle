@@ -11,6 +11,11 @@ type SnapshotFormRow = {
   id: string;
   symbol: string;
   market: string;
+  asset_type: "stock" | "option" | null;
+  underlying_symbol: string | null;
+  option_type: "call" | "put" | "" | null;
+  strike_price: number | string | null;
+  expiration_date: string | null;
   previous_percent: number | string | null;
   position_percent: number | string;
   action_type: string | null;
@@ -46,45 +51,46 @@ function SubmitButton() {
   );
 }
 
-export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshotEditFormProps) {
+function createEmptyRow(index: number): SnapshotFormRow {
+  return {
+    id: `new-${Date.now()}-${index}`,
+    symbol: "",
+    market: "US",
+    asset_type: "stock",
+    underlying_symbol: "",
+    option_type: "",
+    strike_price: "",
+    expiration_date: "",
+    previous_percent: "",
+    position_percent: "",
+    action_type: "",
+    change_reason: "",
+    cost_price: "",
+    reference_price: "",
+    currency: "USD",
+    note: "",
+  };
+}
+
+export function PortfolioSnapshotEditForm({
+  snapshot,
+  items,
+}: PortfolioSnapshotEditFormProps) {
   const [rows, setRows] = useState<SnapshotFormRow[]>(
     items.length > 0
-      ? items
-      : [
-          {
-            id: "new-0",
-            symbol: "",
-            market: "US",
-            previous_percent: "",
-            position_percent: "",
-            action_type: "",
-            change_reason: "",
-            cost_price: "",
-            reference_price: "",
-            currency: "USD",
-            note: "",
-          },
-        ],
+      ? items.map((item) => ({
+          ...item,
+          asset_type: item.asset_type ?? "stock",
+          option_type: (item.option_type as "call" | "put" | "" | null) ?? "",
+          underlying_symbol: item.underlying_symbol ?? item.symbol,
+          expiration_date: item.expiration_date ?? "",
+        }))
+      : [createEmptyRow(0)],
   );
   const [state, formAction] = useActionState(updatePortfolioSnapshot, initialState);
 
   function addRow() {
-    setRows((currentRows) => [
-      ...currentRows,
-      {
-        id: `new-${Date.now()}-${currentRows.length}`,
-        symbol: "",
-        market: "US",
-        previous_percent: "",
-        position_percent: "",
-        action_type: "",
-        change_reason: "",
-        cost_price: "",
-        reference_price: "",
-        currency: "USD",
-        note: "",
-      },
-    ]);
+    setRows((currentRows) => [...currentRows, createEmptyRow(currentRows.length)]);
   }
 
   function removeRow(rowId: string) {
@@ -93,8 +99,21 @@ export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshot
     );
   }
 
+  function updateRow(
+    rowId: string,
+    field: keyof SnapshotFormRow,
+    value: SnapshotFormRow[keyof SnapshotFormRow],
+  ) {
+    setRows((currentRows) =>
+      currentRows.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)),
+    );
+  }
+
   return (
-    <form action={formAction} className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+    <form
+      action={formAction}
+      className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
+    >
       <input type="hidden" name="snapshot_id" value={snapshot.id} />
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -145,14 +164,36 @@ export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshot
               </button>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-4">
               <label className="block space-y-1">
-                <span className="text-sm font-medium">股票代码</span>
+                <span className="text-sm font-medium">资产类型</span>
+                <select
+                  name="asset_type"
+                  value={row.asset_type ?? "stock"}
+                  onChange={(event) =>
+                    updateRow(
+                      row.id,
+                      "asset_type",
+                      (event.target.value === "option" ? "option" : "stock") as "stock" | "option",
+                    )
+                  }
+                  className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="stock">股票</option>
+                  <option value="option">期权</option>
+                </select>
+              </label>
+
+              <label className="block space-y-1 md:col-span-2">
+                <span className="text-sm font-medium">
+                  {row.asset_type === "option" ? "标的代码" : "股票代码"}
+                </span>
                 <input
                   name="symbol"
                   type="text"
-                  defaultValue={row.symbol}
+                  value={row.symbol}
                   required={index === 0}
+                  onChange={(event) => updateRow(row.id, "symbol", event.target.value.toUpperCase())}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm uppercase outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
@@ -162,7 +203,8 @@ export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshot
                 <input
                   name="market"
                   type="text"
-                  defaultValue={row.market}
+                  value={row.market}
+                  onChange={(event) => updateRow(row.id, "market", event.target.value.toUpperCase())}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm uppercase outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
@@ -174,12 +216,65 @@ export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshot
                   type="number"
                   min="0"
                   step="0.0001"
-                  defaultValue={row.position_percent}
+                  value={row.position_percent}
                   required={index === 0}
+                  onChange={(event) => updateRow(row.id, "position_percent", event.target.value)}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
             </div>
+
+            {row.asset_type === "option" ? (
+              <div className="mt-3 grid gap-3 rounded-xl border border-violet-100 bg-violet-50/60 p-3 md:grid-cols-3">
+                <input type="hidden" name="underlying_symbol" value={row.symbol} />
+                <label className="block space-y-1">
+                  <span className="text-sm font-medium">Call / Put</span>
+                  <select
+                    name="option_type"
+                    value={row.option_type ?? ""}
+                    onChange={(event) =>
+                      updateRow(row.id, "option_type", event.target.value as "call" | "put" | "")
+                    }
+                    className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="">请选择</option>
+                    <option value="call">Call</option>
+                    <option value="put">Put</option>
+                  </select>
+                </label>
+
+                <label className="block space-y-1">
+                  <span className="text-sm font-medium">行权价</span>
+                  <input
+                    name="strike_price"
+                    type="number"
+                    min="0"
+                    step="0.000001"
+                    value={row.strike_price ?? ""}
+                    onChange={(event) => updateRow(row.id, "strike_price", event.target.value)}
+                    className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+
+                <label className="block space-y-1">
+                  <span className="text-sm font-medium">到期日</span>
+                  <input
+                    name="expiration_date"
+                    type="date"
+                    value={row.expiration_date ?? ""}
+                    onChange={(event) => updateRow(row.id, "expiration_date", event.target.value)}
+                    className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+              </div>
+            ) : (
+              <>
+                <input type="hidden" name="underlying_symbol" value={row.symbol} />
+                <input type="hidden" name="option_type" value="" />
+                <input type="hidden" name="strike_price" value="" />
+                <input type="hidden" name="expiration_date" value="" />
+              </>
+            )}
 
             <details className="mt-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-3">
               <summary className="cursor-pointer text-sm font-medium text-zinc-700">
@@ -193,7 +288,8 @@ export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshot
                     type="number"
                     min="0"
                     step="0.0001"
-                    defaultValue={row.previous_percent ?? ""}
+                    value={row.previous_percent ?? ""}
+                    onChange={(event) => updateRow(row.id, "previous_percent", event.target.value)}
                     className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
@@ -202,7 +298,8 @@ export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshot
                   <span className="text-sm font-medium">操作类型</span>
                   <select
                     name="action_type"
-                    defaultValue={row.action_type ?? ""}
+                    value={row.action_type ?? ""}
+                    onChange={(event) => updateRow(row.id, "action_type", event.target.value)}
                     className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">自动推断</option>
@@ -219,7 +316,8 @@ export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshot
                   <input
                     name="change_reason"
                     type="text"
-                    defaultValue={row.change_reason ?? ""}
+                    value={row.change_reason ?? ""}
+                    onChange={(event) => updateRow(row.id, "change_reason", event.target.value)}
                     className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
@@ -234,7 +332,8 @@ export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshot
                   type="number"
                   min="0"
                   step="0.000001"
-                  defaultValue={row.cost_price ?? ""}
+                  value={row.cost_price ?? ""}
+                  onChange={(event) => updateRow(row.id, "cost_price", event.target.value)}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
@@ -246,17 +345,19 @@ export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshot
                   type="number"
                   min="0"
                   step="0.000001"
-                  defaultValue={row.reference_price ?? ""}
+                  value={row.reference_price ?? ""}
+                  onChange={(event) => updateRow(row.id, "reference_price", event.target.value)}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
 
               <label className="block space-y-1">
-                <span className="text-sm font-medium">货币</span>
+                <span className="text-sm font-medium">币种</span>
                 <input
                   name="currency"
                   type="text"
-                  defaultValue={row.currency}
+                  value={row.currency}
+                  onChange={(event) => updateRow(row.id, "currency", event.target.value.toUpperCase())}
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm uppercase outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
@@ -267,7 +368,8 @@ export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshot
               <input
                 name="item_note"
                 type="text"
-                defaultValue={row.note ?? ""}
+                value={row.note ?? ""}
+                onChange={(event) => updateRow(row.id, "note", event.target.value)}
                 className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </label>

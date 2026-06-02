@@ -4,6 +4,11 @@ import { CommentsSection } from "@/components/comments-section";
 import { PortfolioSnapshotDeleteButton } from "@/components/portfolio-snapshot-delete-button";
 import { requireUser } from "@/lib/auth/require-user";
 import { getCommentsForTarget } from "@/lib/comments/data";
+import {
+  getPortfolioItemDisplayName,
+  getPortfolioItemKindLabel,
+  isOptionItem,
+} from "@/lib/portfolio/item-display";
 import { actionTypeLabels, formatPositionChange } from "@/lib/portfolio/position-change";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,6 +25,11 @@ type PortfolioItemRow = {
   id: string;
   symbol: string;
   market: string;
+  asset_type: string | null;
+  underlying_symbol: string | null;
+  option_type: string | null;
+  strike_price: number | string | null;
+  expiration_date: string | null;
   previous_percent: number | string | null;
   position_percent: number | string;
   action_type: string | null;
@@ -68,7 +78,7 @@ export default async function SnapshotDetailPage({ params }: SnapshotDetailPageP
   const { data: itemData, error: itemError } = await supabase
     .from("portfolio_items")
     .select(
-      "id,symbol,market,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,note",
+      "id,symbol,market,asset_type,underlying_symbol,option_type,strike_price,expiration_date,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,note",
     )
     .eq("snapshot_id", id)
     .order("position_percent", { ascending: false });
@@ -118,40 +128,63 @@ export default async function SnapshotDetailPage({ params }: SnapshotDetailPageP
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold">持仓明细</h2>
         {items.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-600">这个快照没有明细。</p>
+          <p className="mt-3 text-sm text-zinc-600">这个快照还没有持仓明细。</p>
         ) : (
           <div className="mt-4 space-y-3">
             {items.map((item) => (
               <div key={item.id} className="rounded-xl border border-zinc-200 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Link
-                    href={`/stocks/${encodeURIComponent(item.market)}/${encodeURIComponent(item.symbol)}`}
-                    className="text-lg font-semibold text-blue-700 hover:underline"
-                  >
-                    {item.symbol}
-                  </Link>
-                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600">
-                    {item.market}
-                  </span>
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-                  <span className="font-medium text-zinc-900">
-                    {formatPositionChange(item.previous_percent, item.position_percent)}
-                  </span>
-                  {item.action_type ? (
-                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
-                      {actionTypeLabels[item.action_type] ?? item.action_type}
+                  <div>
+                    <Link
+                      href={`/stocks/${encodeURIComponent(item.market)}/${encodeURIComponent(item.symbol)}`}
+                      className="text-lg font-semibold text-blue-700 hover:underline"
+                    >
+                      {getPortfolioItemDisplayName(item)}
+                    </Link>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-zinc-600">
+                        {getPortfolioItemKindLabel(item)}
+                      </span>
+                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-zinc-600">
+                        {item.market}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                    <span className="font-medium text-zinc-900">
+                      {formatPositionChange(item.previous_percent, item.position_percent)}
                     </span>
-                  ) : null}
+                    {item.action_type ? (
+                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
+                        {actionTypeLabels[item.action_type] ?? item.action_type}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
 
-                <div className="mt-3 grid gap-2 text-sm md:grid-cols-4">
+                <div
+                  className={`mt-3 grid gap-2 text-sm ${
+                    isOptionItem(item) ? "md:grid-cols-5" : "md:grid-cols-4"
+                  }`}
+                >
                   <div className="rounded-lg bg-zinc-50 p-3">
                     <div className="text-zinc-500">仓位变化</div>
                     <div className="mt-1 font-medium text-zinc-900">
                       {formatPositionChange(item.previous_percent, item.position_percent)}
                     </div>
                   </div>
+                  {isOptionItem(item) ? (
+                    <div className="rounded-lg bg-zinc-50 p-3">
+                      <div className="text-zinc-500">期权方向</div>
+                      <div className="mt-1 text-zinc-900">
+                        {item.option_type === "put"
+                          ? "Put"
+                          : item.option_type === "call"
+                            ? "Call"
+                            : "未填写"}
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="rounded-lg bg-zinc-50 p-3">
                     <div className="text-zinc-500">成本价</div>
                     <div className="mt-1 text-zinc-900">{item.cost_price ?? "未填写"}</div>
@@ -161,7 +194,7 @@ export default async function SnapshotDetailPage({ params }: SnapshotDetailPageP
                     <div className="mt-1 text-zinc-900">{item.reference_price ?? "未填写"}</div>
                   </div>
                   <div className="rounded-lg bg-zinc-50 p-3">
-                    <div className="text-zinc-500">货币</div>
+                    <div className="text-zinc-500">币种</div>
                     <div className="mt-1 text-zinc-900">{item.currency}</div>
                   </div>
                 </div>

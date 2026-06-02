@@ -4,6 +4,7 @@ import {
   type PortfolioItemRow,
   type PortfolioSnapshotRow,
 } from "@/lib/portfolio/data";
+import { getPortfolioItemDisplayName } from "@/lib/portfolio/item-display";
 
 export type PortfolioExportFormat = "markdown" | "json" | "csv" | "text";
 
@@ -68,18 +69,21 @@ function buildMarkdownExport(context: PortfolioExportContext) {
     lines.push(`- 日期：${summary.date}`);
     lines.push(`- 备注：${summary.note || "无"}`);
     lines.push("");
-    lines.push("| 股票 | 市场 | 上一仓位 | 当前仓位 | 操作类型 | 成本价 | 现价 | 币种 | 变化原因 | 条目备注 |");
-    lines.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+    lines.push(
+      "| 标的 | 资产类型 | 市场 | 上一仓位 | 当前仓位 | 操作类型 | 成本价 | 现价 | 币种 | 期权方向 | 行权价 | 到期日 | 变化原因 | 条目备注 |",
+    );
+    lines.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
 
     if (items.length === 0) {
-      lines.push("| - | - | - | - | - | - | - | - | - | - |");
+      lines.push("| - | - | - | - | - | - | - | - | - | - | - | - | - | - |");
       return;
     }
 
     items.forEach((item) => {
       lines.push(
         [
-          item.symbol,
+          getPortfolioItemDisplayName(item),
+          item.asset_type ?? "stock",
           item.market ?? "US",
           stringifyValue(item.previous_percent) || "-",
           stringifyValue(item.position_percent) || "-",
@@ -87,6 +91,9 @@ function buildMarkdownExport(context: PortfolioExportContext) {
           stringifyValue(item.cost_price) || "-",
           stringifyValue(item.reference_price) || "-",
           item.currency ?? "-",
+          item.option_type ?? "-",
+          stringifyValue(item.strike_price) || "-",
+          item.expiration_date ?? "-",
           item.change_reason ?? "-",
           item.note ?? "-",
         ]
@@ -122,7 +129,13 @@ function buildJsonExport(context: PortfolioExportContext) {
           createdAt: snapshot.created_at,
           items: items.map((item) => ({
             symbol: item.symbol,
+            displayName: getPortfolioItemDisplayName(item),
             market: item.market ?? "US",
+            assetType: item.asset_type ?? "stock",
+            underlyingSymbol: item.underlying_symbol,
+            optionType: item.option_type,
+            strikePrice: item.strike_price,
+            expirationDate: item.expiration_date,
             previousPercent: item.previous_percent,
             positionPercent: item.position_percent,
             actionType: item.action_type,
@@ -149,8 +162,14 @@ function buildCsvExport(context: PortfolioExportContext) {
     "snapshot_title",
     "snapshot_date",
     "snapshot_note",
+    "display_name",
     "symbol",
     "market",
+    "asset_type",
+    "underlying_symbol",
+    "option_type",
+    "strike_price",
+    "expiration_date",
     "previous_percent",
     "position_percent",
     "action_type",
@@ -183,6 +202,12 @@ function buildCsvExport(context: PortfolioExportContext) {
           "",
           "",
           "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
         ],
       ];
     }
@@ -194,8 +219,14 @@ function buildCsvExport(context: PortfolioExportContext) {
       summary.title,
       summary.date,
       summary.note,
+      getPortfolioItemDisplayName(item),
       item.symbol,
       item.market ?? "US",
+      item.asset_type ?? "stock",
+      item.underlying_symbol ?? "",
+      item.option_type ?? "",
+      stringifyValue(item.strike_price),
+      item.expiration_date ?? "",
       stringifyValue(item.previous_percent),
       stringifyValue(item.position_percent),
       item.action_type ?? "",
@@ -242,15 +273,19 @@ function buildTextExport(context: PortfolioExportContext) {
 
     items.forEach((item, itemIndex) => {
       lines.push(
-        `${itemIndex + 1}. ${item.symbol} (${item.market ?? "US"}) | 上一仓位：${
-          stringifyValue(item.previous_percent) || "无"
-        } | 当前仓位：${stringifyValue(item.position_percent) || "0"} | 操作类型：${
-          item.action_type ?? "未填写"
-        } | 成本价：${stringifyValue(item.cost_price) || "未填写"} | 现价：${
-          stringifyValue(item.reference_price) || "未填写"
-        } | 币种：${item.currency ?? "USD"} | 变化原因：${item.change_reason ?? "无"} | 条目备注：${
-          item.note ?? "无"
-        }`,
+        `${itemIndex + 1}. ${getPortfolioItemDisplayName(item)} | 资产类型：${
+          item.asset_type ?? "stock"
+        } | 上一仓位：${stringifyValue(item.previous_percent) || "无"} | 当前仓位：${
+          stringifyValue(item.position_percent) || "0"
+        } | 操作类型：${item.action_type ?? "未填写"} | 成本价：${
+          stringifyValue(item.cost_price) || "未填写"
+        } | 现价：${stringifyValue(item.reference_price) || "未填写"} | 币种：${
+          item.currency ?? "USD"
+        } | 期权方向：${item.option_type ?? "无"} | 行权价：${
+          stringifyValue(item.strike_price) || "无"
+        } | 到期日：${item.expiration_date ?? "无"} | 变化原因：${
+          item.change_reason ?? "无"
+        } | 条目备注：${item.note ?? "无"}`,
       );
     });
   });

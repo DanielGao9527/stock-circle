@@ -160,6 +160,11 @@ Key columns:
 - `stock_id uuid not null` -> `stocks.id`
 - `symbol text not null`
 - `market text default 'US'`
+- `asset_type text not null default 'stock'`
+- `underlying_symbol text null`
+- `option_type text null`
+- `strike_price numeric(20,6) null`
+- `expiration_date date null`
 - `previous_percent numeric(8,4) null`
 - `position_percent numeric(8,4) not null`
 - `action_type text null`
@@ -183,6 +188,12 @@ Position change behavior:
 - `previous_percent` is the before-change position.
 - `position_percent` is the after-change/current position.
 - If `action_type` is empty, the application infers `new`, `increase`, `reduce`, `hold`, or `clear`.
+
+Option-holding behavior:
+
+- `asset_type` is either `stock` or `option`.
+- For `option`, the current implementation treats `symbol` as the underlying symbol.
+- For `option`, `option_type`, `strike_price`, and `expiration_date` should all be present.
 
 Indexes:
 
