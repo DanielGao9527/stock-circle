@@ -10,6 +10,7 @@ const desktopLinks = [
   { href: "/stocks", label: "股票" },
   { href: "/quick", label: "发布" },
   { href: "/portfolio", label: "持仓" },
+  { href: "/portfolios", label: "圈内持仓" },
   { href: "/me", label: "我的" },
   { href: "/import", label: "导入" },
 ];
@@ -34,9 +35,7 @@ export function AppShell({ children }: AppShellProps) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl px-4 pb-24 pt-5 md:pb-8">
-        {children}
-      </main>
+      <main className="mx-auto w-full max-w-5xl px-4 pb-24 pt-5 md:pb-8">{children}</main>
 
       <MobileBottomNav />
     </div>

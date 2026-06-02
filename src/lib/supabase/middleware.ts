@@ -8,7 +8,7 @@ const { supabaseUrl, supabaseAnonKey } = getSupabaseEnv();
  * Refreshes auth session in middleware and returns synced response.
  */
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request,
   });
 

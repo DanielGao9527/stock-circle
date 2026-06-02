@@ -153,9 +153,18 @@ function parseItems(formData: FormData): ParsedItem[] | { error: string } {
     return { error: "操作类型只能是 new、increase、reduce、hold 或 clear。" };
   }
 
-  return items.map(
-    ({ hasAnyValue: _hasAnyValue, rawActionType: _rawActionType, ...item }) => item as ParsedItem,
-  );
+  return items.map((item) => ({
+    symbol: item.symbol,
+    market: item.market,
+    previousPercent: item.previousPercent,
+    positionPercent: item.positionPercent!,
+    actionType: item.actionType,
+    changeReason: item.changeReason,
+    costPrice: item.costPrice,
+    referencePrice: item.referencePrice,
+    currency: item.currency,
+    note: item.note,
+  }));
 }
 
 export async function createPortfolioSnapshot(

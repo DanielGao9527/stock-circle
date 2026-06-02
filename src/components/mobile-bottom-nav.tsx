@@ -6,9 +6,10 @@ import { usePathname } from "next/navigation";
 const navItems = [
   { href: "/", label: "首页", icon: "🏠" },
   { href: "/stocks", label: "股票", icon: "📈" },
-  { href: "/quick", label: "发布", icon: "➕" },
-  { href: "/portfolio", label: "持仓", icon: "💼" },
-  { href: "/me", label: "我的", icon: "👤" },
+  { href: "/quick", label: "发布", icon: "✍️" },
+  { href: "/portfolio", label: "持仓", icon: "🧾" },
+  { href: "/portfolios", label: "圈内", icon: "👥" },
+  { href: "/me", label: "我的", icon: "🙍" },
 ];
 
 export function MobileBottomNav() {
@@ -16,9 +17,10 @@ export function MobileBottomNav() {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white/95 backdrop-blur md:hidden">
-      <ul className="mx-auto grid max-w-md grid-cols-5">
+      <ul className="mx-auto grid max-w-md grid-cols-6">
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive =
+            item.href === "/" ? pathname === item.href : pathname.startsWith(item.href);
 
           return (
             <li key={item.href}>

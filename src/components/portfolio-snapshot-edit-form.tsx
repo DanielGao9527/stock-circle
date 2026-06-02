@@ -2,7 +2,10 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { updatePortfolioSnapshot } from "@/app/portfolio/actions";
+import {
+  type PortfolioSnapshotActionState,
+  updatePortfolioSnapshot,
+} from "@/app/portfolio/actions";
 
 type SnapshotFormRow = {
   id: string;
@@ -27,7 +30,7 @@ type PortfolioSnapshotEditFormProps = {
   items: SnapshotFormRow[];
 };
 
-const initialState = {};
+const initialState: PortfolioSnapshotActionState = {};
 
 function SubmitButton() {
   const { pending } = useFormStatus();

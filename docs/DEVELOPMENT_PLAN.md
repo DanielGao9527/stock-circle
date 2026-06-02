@@ -83,11 +83,13 @@ Goals:
 - Add search/filter by ticker/tag/date/author
 - Support linking notes to snapshots and links
 - Improve list/detail navigation
+- Add authenticated public portfolio pages for latest holdings, history, and recent position changes
 
 Deliverables:
 
 - Functional query/filter experience
 - Basic relation management UX
+- Shared portfolio visibility inside the private circle
 
 ### Phase 5 - JSON Import
 
@@ -96,12 +98,28 @@ Goals:
 - Implement JSON parser and validator per `docs/JSON_IMPORT_SPEC.md`
 - Add dry-run mode and error reporting
 - Add transactional import execution
+- Improve import usability with a copyable JSON template
 
 Deliverables:
 
 - Import page/workflow
 - Validation and import result report
 - Audit-friendly import summary logs
+- Template-assisted JSON creation flow for external tools
+
+### Phase 5.5 - Portfolio Review Export
+
+Goals:
+
+- Add operation-flow export for the current user's portfolio snapshots
+- Support date-range filtering and clear structured output
+- Prepare copy-ready exports for external AI tools without integrating any AI API
+
+Deliverables:
+
+- `/portfolio/export` page
+- Markdown / JSON / CSV / Plain Text export formats
+- Copy-ready operation flow for retrospective analysis
 
 ### Phase 6 - PWA and Stabilization
 
@@ -121,7 +139,7 @@ Deliverables:
 
 - Phase 0-1: 1 week
 - Phase 2-3: 1-2 weeks
-- Phase 4-5: 1 week
+- Phase 4-5.5: 1-1.5 weeks
 - Phase 6: 3-5 days
 
 Total estimated MVP: ~4 weeks (part-time pace).
@@ -133,14 +151,17 @@ Total estimated MVP: ~4 weeks (part-time pace).
 - Smoke tests for major user flows:
   - login
   - create/edit snapshot
+  - view authenticated public portfolios
   - create note + comment
   - import JSON with dry-run and commit
+  - export portfolio operation flow across date ranges
 
 ## 6. Risks and Controls
 
 - RLS misconfiguration -> add policy-specific test cases
 - Scope creep -> enforce `docs/FEATURE_SCOPE.md`
 - Data quality issues on import -> strict validation and clear errors
+- Export formatting drift -> keep one canonical export builder for all formats
 - Overengineering for tiny user base -> keep implementation minimal
 
 ## 7. MVP Exit Criteria
@@ -151,4 +172,5 @@ MVP can be considered done when:
 - Core archival entities are fully usable
 - Search/filter is practical for daily use
 - JSON import works reliably with documented contract
+- Portfolio export works reliably with clear copyable output
 - PWA installability is verified

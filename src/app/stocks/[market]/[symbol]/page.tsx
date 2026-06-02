@@ -190,7 +190,7 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
       const snapshot = snapshotById.get(item.snapshot_id);
       const userId = snapshot ? getUserId(snapshot) : null;
 
-      if (userId && !map.has(userId)) {
+      if (userId && snapshot && !map.has(userId)) {
         map.set(userId, { item, snapshot });
       }
 

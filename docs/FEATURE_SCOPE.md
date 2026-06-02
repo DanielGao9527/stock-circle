@@ -22,7 +22,10 @@ Decision rule:
 - Snapshot creation with date and optional note
 - Snapshot items with ticker and quantity
 - Optional numeric fields for contextual reference (not performance analytics)
+- Position change fields for review workflows, including previous allocation, action type, change reason, and price context
 - Edit and soft delete
+- Authenticated circle-wide visibility for each member's latest portfolio snapshot
+- Operation-flow export in Markdown / JSON / CSV / Plain Text for external AI-assisted review
 
 ### 3) Stock Notes (股票笔记)
 
@@ -50,6 +53,7 @@ Decision rule:
 - Import supported entities from strict JSON payloads
 - Dry-run validation mode before commit
 - Per-record error reporting
+- Copyable JSON template for faster external-tool-assisted drafting
 
 ### 8) PWA Baseline
 
@@ -63,6 +67,7 @@ Decision rule:
 - Real-time market data engine
 - Exact PnL/IRR/time-weighted return computation
 - AI stock recommendation or buy/sell suggestions
+- Built-in AI portfolio analysis or automated advisory output
 - Public profiles, public feed, open community discovery
 - Ads, monetization, referral system
 

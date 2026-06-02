@@ -129,6 +129,20 @@ export default async function PortfolioPage() {
         <p className="mt-2 text-sm leading-6 text-zinc-600">
           手动记录组合仓位快照，用于之后回顾当时的配置和想法。
         </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            href="/portfolios"
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
+          >
+            查看圈内持仓
+          </Link>
+          <Link
+            href="/portfolio/export"
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
+          >
+            导出操作流
+          </Link>
+        </div>
       </div>
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">

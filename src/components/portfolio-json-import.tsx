@@ -2,7 +2,11 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { createPortfolioSnapshot } from "@/app/portfolio/actions";
+import { CopyTextButton } from "@/components/copy-text-button";
+import {
+  createPortfolioSnapshot,
+  type PortfolioSnapshotActionState,
+} from "@/app/portfolio/actions";
 
 type ImportPosition = {
   id: string;
@@ -44,7 +48,7 @@ type PositionJson = {
   note?: unknown;
 };
 
-const initialState = {};
+const initialState: PortfolioSnapshotActionState = {};
 
 const actionTypeOptions = [
   { value: "", label: "自动推断" },
@@ -154,6 +158,12 @@ export function PortfolioJsonImport() {
   const [parseError, setParseError] = useState("");
   const [state, formAction] = useActionState(createPortfolioSnapshot, initialState);
 
+  function fillExampleTemplate() {
+    setJsonText(exampleJson);
+    setDraft(null);
+    setParseError("");
+  }
+
   function updatePosition(rowId: string, field: keyof ImportPosition, value: string) {
     setDraft((currentDraft) => {
       if (!currentDraft) {
@@ -240,6 +250,33 @@ export function PortfolioJsonImport() {
         <p className="mt-2 text-sm leading-6 text-zinc-600">
           把券商文字、截图识别文字或聊天记录交给外部 AI 工具生成 StockCircle JSON，再粘贴到这里。本页只做本地解析，不调用任何 AI API。
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">JSON 模板</h2>
+          <div className="flex flex-wrap gap-2">
+            <CopyTextButton
+              text={exampleJson}
+              idleLabel="复制模板"
+              successLabel="模板已复制"
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
+            />
+            <button
+              type="button"
+              onClick={fillExampleTemplate}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
+            >
+              填入模板
+            </button>
+          </div>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
+          可以先复制模板交给外部工具补全，再回到这里粘贴解析。模板字段已经覆盖仓位变化、加减仓原因和价格信息。
+        </p>
+        <pre className="mt-3 overflow-x-auto rounded-2xl border border-zinc-200 bg-zinc-50 p-4 font-mono text-sm leading-6 text-zinc-800">
+          {exampleJson}
+        </pre>
       </div>
 
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">

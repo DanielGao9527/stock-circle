@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { createPortfolioSnapshot } from "@/app/portfolio/actions";
@@ -28,11 +28,14 @@ function SubmitButton() {
 }
 
 export function PortfolioSnapshotForm() {
-  const [rows, setRows] = useState<PortfolioRow[]>([{ id: Date.now() }]);
+  const nextRowId = useRef(2);
+  const [rows, setRows] = useState<PortfolioRow[]>([{ id: 1 }]);
   const [state, formAction] = useActionState(createPortfolioSnapshot, initialState);
 
   function addRow() {
-    setRows((currentRows) => [...currentRows, { id: Date.now() + currentRows.length }]);
+    const rowId = nextRowId.current;
+    nextRowId.current += 1;
+    setRows((currentRows) => [...currentRows, { id: rowId }]);
   }
 
   function removeRow(rowId: number) {
