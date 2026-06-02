@@ -37,10 +37,10 @@ type StockRow = {
   symbol: string;
 };
 
-type SnapshotItemRow = {
+type PortfolioItemRow = {
   snapshot_id: string;
-  ticker: string;
-  quantity: number | string | null;
+  symbol: string;
+  position_percent: number | string;
 };
 
 type FeedItem =
@@ -64,7 +64,7 @@ type FeedItem =
       createdAt: string;
       href: string;
       title: string;
-      items: SnapshotItemRow[];
+      items: PortfolioItemRow[];
     };
 
 function getPreview(content: string) {
@@ -181,17 +181,17 @@ export default async function Home() {
     }
   }
 
-  let snapshotItems = new Map<string, SnapshotItemRow[]>();
+  let snapshotItems = new Map<string, PortfolioItemRow[]>();
 
   if (snapshotIds.length > 0) {
     const { data: itemData, error: itemError } = await supabase
-      .from("snapshot_items")
-      .select("snapshot_id,ticker,quantity")
+      .from("portfolio_items")
+      .select("snapshot_id,symbol,position_percent")
       .in("snapshot_id", snapshotIds)
       .limit(60);
 
     if (!itemError || !isMissingTableError(itemError)) {
-      snapshotItems = ((itemData ?? []) as SnapshotItemRow[]).reduce((map, item) => {
+      snapshotItems = ((itemData ?? []) as PortfolioItemRow[]).reduce((map, item) => {
         const currentItems = map.get(item.snapshot_id) ?? [];
         if (currentItems.length < 3) {
           map.set(item.snapshot_id, [...currentItems, item]);
@@ -223,7 +223,7 @@ export default async function Home() {
         authorId,
         authorName: authorId ? profiles.get(authorId) ?? `成员 ${authorId.slice(0, 8)}` : "未知成员",
         createdAt: snapshot.created_at,
-        href: "/portfolio",
+        href: `/portfolio/snapshots/${snapshot.id}`,
         title: snapshot.title ?? "未命名持仓快照",
         items: snapshotItems.get(snapshot.id) ?? [],
       };
@@ -293,11 +293,13 @@ export default async function Home() {
                     <div className="flex flex-wrap gap-2">
                       {item.items.map((portfolioItem) => (
                         <span
-                          key={`${item.id}-${portfolioItem.ticker}`}
+                          key={`${item.id}-${portfolioItem.symbol}`}
                           className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs text-zinc-700"
                         >
-                          {portfolioItem.ticker}
-                          {portfolioItem.quantity ? ` · ${portfolioItem.quantity}` : ""}
+                          {portfolioItem.symbol}
+                          {portfolioItem.position_percent
+                            ? ` · ${portfolioItem.position_percent}%`
+                            : ""}
                         </span>
                       ))}
                     </div>

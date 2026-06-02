@@ -16,6 +16,7 @@ Core entities:
 - `posts`
 - `post_stocks`
 - `portfolio_snapshots`
+- `portfolio_items`
 - `snapshot_items`
 - `stock_notes`
 - `external_links`
@@ -115,7 +116,7 @@ Indexes:
 
 ### 3.4 snapshot_items
 
-Purpose: line items inside a snapshot.
+Purpose: legacy/simple line items inside a snapshot. New portfolio snapshot features should use `portfolio_items`.
 
 Key columns:
 
@@ -131,16 +132,38 @@ Key columns:
 - `created_at timestamptz default now()`
 - `updated_at timestamptz default now()`
 
+### 3.5 portfolio_items
+
+Purpose: current portfolio snapshot line items used by the portfolio feature.
+
+Key columns:
+
+- `id uuid pk`
+- `snapshot_id uuid not null` -> `portfolio_snapshots.id`
+- `stock_id uuid not null` -> `stocks.id`
+- `symbol text not null`
+- `market text default 'US'`
+- `position_percent numeric(8,4) not null`
+- `cost_price numeric(20,6) null`
+- `reference_price numeric(20,6) null`
+- `currency text default 'USD'`
+- `note text null`
+- `created_at timestamptz default now()`
+- `updated_at timestamptz default now()`
+
 Constraints:
 
-- `quantity >= 0`
+- `position_percent >= 0`
+- `cost_price is null or cost_price >= 0`
+- `reference_price is null or reference_price >= 0`
 
 Indexes:
 
 - `(snapshot_id)`
-- `(ticker)`
+- `(symbol, market)`
+- `(stock_id)`
 
-### 3.5 stock_notes
+### 3.6 stock_notes
 
 Purpose: investment discussion notes (股票笔记).
 
@@ -161,7 +184,7 @@ Indexes:
 - `(author_id, created_at desc)`
 - `(primary_ticker)`
 
-### 3.6 external_links
+### 3.7 external_links
 
 Purpose: external references linked to discussion.
 
@@ -186,7 +209,7 @@ Indexes:
 - `created_at desc`
 - `(source)`
 
-### 3.7 comments
+### 3.8 comments
 
 Purpose: comments on snapshots or notes.
 
@@ -206,7 +229,7 @@ Indexes:
 - `(target_type, target_id, created_at asc)`
 - `(author_id, created_at desc)`
 
-### 3.8 tags
+### 3.9 tags
 
 Purpose: reusable tag dictionary.
 
@@ -216,7 +239,7 @@ Key columns:
 - `name text unique not null`
 - `created_at timestamptz default now()`
 
-### 3.9 entity_tags
+### 3.10 entity_tags
 
 Purpose: many-to-many tag binding for polymorphic entities.
 
@@ -232,7 +255,7 @@ Unique constraint:
 
 - `(entity_type, entity_id, tag_id)`
 
-### 3.10 entity_links
+### 3.11 entity_links
 
 Purpose: bind external links to snapshots/notes.
 

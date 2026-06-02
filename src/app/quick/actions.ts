@@ -3,12 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ensureProfile } from "@/lib/profiles/ensure-profile";
+import { getOrCreateStockId } from "@/lib/stocks/get-or-create-stock";
 import { createClient } from "@/lib/supabase/server";
 import { postTypes, type PostType, type QuickPostActionState } from "@/lib/posts/types";
-
-type StockRow = {
-  id: string;
-};
 
 type CreatedPostRow = {
   id: string;
@@ -56,54 +53,6 @@ function normalizeOptionalPrice(value: string | null) {
 
   const price = Number(value);
   return Number.isFinite(price) && price >= 0 ? price : null;
-}
-
-async function getOrCreateStockId(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  symbol: string,
-  market: string,
-) {
-  const { data: existingStock, error: selectError } = await supabase
-    .from("stocks")
-    .select("id")
-    .eq("symbol", symbol)
-    .eq("market", market)
-    .maybeSingle();
-
-  if (selectError) {
-    throw new Error(selectError.message);
-  }
-
-  if (existingStock) {
-    return (existingStock as StockRow).id;
-  }
-
-  const { data: createdStock, error: insertError } = await supabase
-    .from("stocks")
-    .insert({ symbol, market })
-    .select("id")
-    .single();
-
-  if (insertError) {
-    if (insertError.code === "23505") {
-      const { data: duplicatedStock, error: retryError } = await supabase
-        .from("stocks")
-        .select("id")
-        .eq("symbol", symbol)
-        .eq("market", market)
-        .single();
-
-      if (retryError) {
-        throw new Error(retryError.message);
-      }
-
-      return (duplicatedStock as StockRow).id;
-    }
-
-    throw new Error(insertError.message);
-  }
-
-  return (createdStock as StockRow).id;
 }
 
 export async function createQuickPost(

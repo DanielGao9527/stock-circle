@@ -27,7 +27,7 @@ type SnapshotRow = {
 
 type SnapshotItemRow = {
   snapshot_id: string;
-  ticker: string;
+  symbol: string;
   market: string | null;
 };
 
@@ -112,8 +112,8 @@ export default async function StocksPage() {
 
   if (snapshotIds.length > 0) {
     const { data: itemData } = await supabase
-      .from("snapshot_items")
-      .select("snapshot_id,ticker,market")
+      .from("portfolio_items")
+      .select("snapshot_id,symbol,market")
       .in("snapshot_id", snapshotIds)
       .limit(500);
 
@@ -133,7 +133,7 @@ export default async function StocksPage() {
       return map;
     }
 
-    const key = stockKey(item.market ?? "US", item.ticker);
+    const key = stockKey(item.market ?? "US", item.symbol);
     const holders = map.get(key) ?? new Set<string>();
     holders.add(userId);
     map.set(key, holders);
@@ -159,7 +159,7 @@ export default async function StocksPage() {
   });
 
   allSnapshotItems.forEach((item) => {
-    const symbol = item.ticker.toUpperCase();
+    const symbol = item.symbol.toUpperCase();
     const market = (item.market ?? "US").toUpperCase();
     const key = stockKey(market, symbol);
 

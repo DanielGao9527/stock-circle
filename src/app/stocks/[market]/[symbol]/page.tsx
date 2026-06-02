@@ -40,13 +40,13 @@ type SnapshotRow = {
 type SnapshotItemRow = {
   id: string;
   snapshot_id: string;
-  ticker: string;
+  symbol: string;
   market: string | null;
-  quantity: number | string | null;
-  avg_cost: number | string | null;
-  ref_price: number | string | null;
+  position_percent: number | string;
+  cost_price: number | string | null;
+  reference_price: number | string | null;
   currency: string | null;
-  item_note: string | null;
+  note: string | null;
   created_at: string;
 };
 
@@ -157,9 +157,11 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
   });
 
   const { data: itemData } = await supabase
-    .from("snapshot_items")
-    .select("id,snapshot_id,ticker,market,quantity,avg_cost,ref_price,currency,item_note,created_at")
-    .eq("ticker", symbol)
+    .from("portfolio_items")
+    .select(
+      "id,snapshot_id,symbol,market,position_percent,cost_price,reference_price,currency,note,created_at",
+    )
+    .eq("symbol", symbol)
     .order("created_at", { ascending: false })
     .limit(100);
   const relatedItems = ((itemData ?? []) as SnapshotItemRow[]).filter(
@@ -254,7 +256,9 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
                 <div className="text-sm font-medium">
                   {profiles.get(userId) ?? `成员 ${userId.slice(0, 8)}`}
                 </div>
-                <div className="mt-2 text-sm text-zinc-600">数量：{item.quantity ?? "未填写"}</div>
+                <div className="mt-2 text-sm text-zinc-600">
+                  仓位：{item.position_percent}%
+                </div>
                 <div className="mt-1 text-xs text-zinc-500">
                   {snapshot.title ?? "未命名持仓快照"} · {formatDate(snapshot.snapshot_date)}
                 </div>
@@ -283,22 +287,24 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
                   </div>
                   <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
                     <div className="rounded-lg bg-zinc-50 p-3">
-                      <div className="text-zinc-500">数量</div>
-                      <div className="mt-1 text-zinc-900">{item.quantity ?? "未填写"}</div>
+                      <div className="text-zinc-500">仓位</div>
+                      <div className="mt-1 text-zinc-900">{item.position_percent}%</div>
                     </div>
                     <div className="rounded-lg bg-zinc-50 p-3">
-                      <div className="text-zinc-500">平均成本</div>
-                      <div className="mt-1 text-zinc-900">{item.avg_cost ?? "未填写"}</div>
+                      <div className="text-zinc-500">成本价</div>
+                      <div className="mt-1 text-zinc-900">{item.cost_price ?? "未填写"}</div>
                     </div>
                     <div className="rounded-lg bg-zinc-50 p-3">
                       <div className="text-zinc-500">参考价格</div>
                       <div className="mt-1 text-zinc-900">
-                        {item.ref_price ? `${item.ref_price} ${item.currency ?? ""}` : "未填写"}
+                        {item.reference_price
+                          ? `${item.reference_price} ${item.currency ?? ""}`
+                          : "未填写"}
                       </div>
                     </div>
                   </div>
-                  {item.item_note ? (
-                    <p className="mt-3 text-sm leading-6 text-zinc-600">{item.item_note}</p>
+                  {item.note ? (
+                    <p className="mt-3 text-sm leading-6 text-zinc-600">{item.note}</p>
                   ) : null}
                 </div>
               );
