@@ -240,7 +240,7 @@ export function PortfolioSnapshotEditForm({ snapshot, items }: PortfolioSnapshot
               </label>
 
               <label className="block space-y-1">
-                <span className="text-sm font-medium">参考价（可选）</span>
+                <span className="text-sm font-medium">现价（可选）</span>
                 <input
                   name="reference_price"
                   type="number"

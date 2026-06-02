@@ -42,6 +42,7 @@ type PositionJson = {
   positionPercent?: unknown;
   actionType?: unknown;
   costPrice?: unknown;
+  currentPrice?: unknown;
   referencePrice?: unknown;
   currency?: unknown;
   changeReason?: unknown;
@@ -80,7 +81,7 @@ const exampleJson = `{
       "positionPercent": 30,
       "actionType": "increase",
       "costPrice": 85.2,
-      "referencePrice": 112.5,
+      "currentPrice": 112.5,
       "currency": "USD",
       "changeReason": "HBM 逻辑继续强化",
       "note": ""
@@ -213,7 +214,7 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
       position_percent: positionPercent,
       action_type: normalizeActionType(position.actionType),
       cost_price: toNumberText(position.costPrice),
-      reference_price: toNumberText(position.referencePrice),
+      reference_price: toNumberText(position.currentPrice) || toNumberText(position.referencePrice),
       currency: toText(position.currency).toUpperCase() || "USD",
       change_reason: toText(position.changeReason),
       note: toText(position.note),
@@ -497,7 +498,7 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
                   </label>
 
                   <label className="block space-y-1">
-                    <span className="text-sm font-medium">参考价</span>
+                    <span className="text-sm font-medium">现价</span>
                     <input
                       name="reference_price"
                       type="number"

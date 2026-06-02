@@ -68,7 +68,7 @@ function buildMarkdownExport(context: PortfolioExportContext) {
     lines.push(`- 日期：${summary.date}`);
     lines.push(`- 备注：${summary.note || "无"}`);
     lines.push("");
-    lines.push("| 股票 | 市场 | 上一仓位 | 当前仓位 | 操作类型 | 成本价 | 参考价 | 币种 | 变化原因 | 条目备注 |");
+    lines.push("| 股票 | 市场 | 上一仓位 | 当前仓位 | 操作类型 | 成本价 | 现价 | 币种 | 变化原因 | 条目备注 |");
     lines.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
 
     if (items.length === 0) {
@@ -127,6 +127,7 @@ function buildJsonExport(context: PortfolioExportContext) {
             positionPercent: item.position_percent,
             actionType: item.action_type,
             costPrice: item.cost_price,
+            currentPrice: item.reference_price,
             referencePrice: item.reference_price,
             currency: item.currency ?? "USD",
             changeReason: item.change_reason,
@@ -154,7 +155,7 @@ function buildCsvExport(context: PortfolioExportContext) {
     "position_percent",
     "action_type",
     "cost_price",
-    "reference_price",
+    "current_price",
     "currency",
     "change_reason",
     "item_note",
@@ -245,7 +246,7 @@ function buildTextExport(context: PortfolioExportContext) {
           stringifyValue(item.previous_percent) || "无"
         } | 当前仓位：${stringifyValue(item.position_percent) || "0"} | 操作类型：${
           item.action_type ?? "未填写"
-        } | 成本价：${stringifyValue(item.cost_price) || "未填写"} | 参考价：${
+        } | 成本价：${stringifyValue(item.cost_price) || "未填写"} | 现价：${
           stringifyValue(item.reference_price) || "未填写"
         } | 币种：${item.currency ?? "USD"} | 变化原因：${item.change_reason ?? "无"} | 条目备注：${
           item.note ?? "无"

@@ -307,7 +307,7 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
                       <div className="mt-1 text-zinc-900">{item.cost_price ?? "未填写"}</div>
                     </div>
                     <div className="rounded-lg bg-zinc-50 p-3">
-                      <div className="text-zinc-500">参考价格</div>
+                      <div className="text-zinc-500">现价</div>
                       <div className="mt-1 text-zinc-900">
                         {item.reference_price
                           ? `${item.reference_price} ${item.currency ?? ""}`

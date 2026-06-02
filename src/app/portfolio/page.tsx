@@ -127,9 +127,15 @@ export default async function PortfolioPage() {
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">持仓</h1>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
-          手动记录组合仓位快照，用于之后回顾当时的配置和想法。
+          手动记录组合仓位快照，也支持用 JSON 模板快速导入，方便之后回看当时的配置和想法。
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            href="/import"
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-blue-700"
+          >
+            JSON 导入持仓
+          </Link>
           <Link
             href="/portfolios"
             className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
@@ -154,7 +160,15 @@ export default async function PortfolioPage() {
             highlight
           />
         ) : (
-          <p className="mt-3 text-sm text-zinc-600">还没有持仓快照。</p>
+          <div className="mt-3 space-y-3">
+            <p className="text-sm text-zinc-600">还没有持仓快照。</p>
+            <Link
+              href="/import"
+              className="inline-flex rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
+            >
+              先用 JSON 导入一份
+            </Link>
+          </div>
         )}
       </section>
 
