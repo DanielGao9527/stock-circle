@@ -52,6 +52,7 @@ Key columns:
 - `id uuid pk`
 - `symbol text not null`
 - `market text not null default 'US'`
+- `name text null`
 - `created_at timestamptz default now()`
 
 Constraints:
@@ -121,6 +122,7 @@ Key columns:
 - `id uuid pk`
 - `snapshot_id uuid not null` -> `portfolio_snapshots.id`
 - `ticker text not null`
+- `market text default 'US'`
 - `quantity numeric(20,6) not null`
 - `avg_cost numeric(20,6) null`
 - `ref_price numeric(20,6) null`

@@ -121,7 +121,7 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
                 stocks.map((stock) => (
                   <Link
                     key={stock.id}
-                    href={`/stocks?market=${encodeURIComponent(stock.market)}&symbol=${encodeURIComponent(stock.symbol)}`}
+                    href={`/stocks/${encodeURIComponent(stock.market)}/${encodeURIComponent(stock.symbol)}`}
                     className="rounded-full border border-zinc-200 px-3 py-1 text-sm text-blue-700 transition hover:border-blue-200 hover:bg-blue-50"
                   >
                     {stock.symbol}
