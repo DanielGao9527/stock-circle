@@ -12,6 +12,9 @@
 Core entities:
 
 - `profiles`
+- `stocks`
+- `posts`
+- `post_stocks`
 - `portfolio_snapshots`
 - `snapshot_items`
 - `stock_notes`
@@ -36,7 +39,59 @@ Key columns:
 - `created_at timestamptz default now()`
 - `updated_at timestamptz default now()`
 
-### 3.2 portfolio_snapshots
+### 3.2 Quick Post MVP Tables
+
+These tables support the first real feature: quick posting of ideas, links, news, reviews, and notes.
+
+#### stocks
+
+Purpose: reusable stock identity rows keyed by symbol and market.
+
+Key columns:
+
+- `id uuid pk`
+- `symbol text not null`
+- `market text not null default 'US'`
+- `created_at timestamptz default now()`
+
+Constraints:
+
+- unique `(symbol, market)`
+
+#### posts
+
+Purpose: user-created archive entries from the quick post form.
+
+Key columns:
+
+- `id uuid pk`
+- `author_id uuid not null` -> `auth.users.id`
+- `title text null`
+- `content text not null`
+- `post_type text not null` (`idea` | `link` | `news` | `review` | `other`)
+- `source_url text null`
+- `market text not null default 'US'`
+- `reference_price numeric(20,6) null`
+- `reference_currency text not null default 'USD'`
+- `is_deleted boolean default false`
+- `created_at timestamptz default now()`
+- `updated_at timestamptz default now()`
+
+#### post_stocks
+
+Purpose: many-to-many relation between posts and associated stocks.
+
+Key columns:
+
+- `post_id uuid not null` -> `posts.id`
+- `stock_id uuid not null` -> `stocks.id`
+- `created_at timestamptz default now()`
+
+Primary key:
+
+- `(post_id, stock_id)`
+
+### 3.3 portfolio_snapshots
 
 Purpose: top-level snapshot record (持仓快照).
 
@@ -57,7 +112,7 @@ Indexes:
 - `(owner_id, snapshot_date desc)`
 - `created_at desc`
 
-### 3.3 snapshot_items
+### 3.4 snapshot_items
 
 Purpose: line items inside a snapshot.
 
@@ -83,7 +138,7 @@ Indexes:
 - `(snapshot_id)`
 - `(ticker)`
 
-### 3.4 stock_notes
+### 3.5 stock_notes
 
 Purpose: investment discussion notes (股票笔记).
 
@@ -104,7 +159,7 @@ Indexes:
 - `(author_id, created_at desc)`
 - `(primary_ticker)`
 
-### 3.5 external_links
+### 3.6 external_links
 
 Purpose: external references linked to discussion.
 
@@ -129,7 +184,7 @@ Indexes:
 - `created_at desc`
 - `(source)`
 
-### 3.6 comments
+### 3.7 comments
 
 Purpose: comments on snapshots or notes.
 
@@ -149,7 +204,7 @@ Indexes:
 - `(target_type, target_id, created_at asc)`
 - `(author_id, created_at desc)`
 
-### 3.7 tags
+### 3.8 tags
 
 Purpose: reusable tag dictionary.
 
@@ -159,7 +214,7 @@ Key columns:
 - `name text unique not null`
 - `created_at timestamptz default now()`
 
-### 3.8 entity_tags
+### 3.9 entity_tags
 
 Purpose: many-to-many tag binding for polymorphic entities.
 
@@ -175,7 +230,7 @@ Unique constraint:
 
 - `(entity_type, entity_id, tag_id)`
 
-### 3.9 entity_links
+### 3.10 entity_links
 
 Purpose: bind external links to snapshots/notes.
 

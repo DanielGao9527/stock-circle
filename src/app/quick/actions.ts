@@ -1,0 +1,197 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { postTypes, type PostType, type QuickPostActionState } from "@/lib/posts/types";
+
+type StockRow = {
+  id: string;
+};
+
+type CreatedPostRow = {
+  id: string;
+};
+
+function normalizeText(value: FormDataEntryValue | null) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text.length > 0 ? text : null;
+}
+
+function normalizeSymbolList(value: FormDataEntryValue | null) {
+  const raw = typeof value === "string" ? value : "";
+  const symbols = raw
+    .split(",")
+    .map((symbol) => symbol.trim().toUpperCase())
+    .filter(Boolean);
+
+  return Array.from(new Set(symbols));
+}
+
+function isValidPostType(value: string): value is PostType {
+  return postTypes.includes(value as PostType);
+}
+
+function normalizeOptionalUrl(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeOptionalPrice(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const price = Number(value);
+  return Number.isFinite(price) && price >= 0 ? price : null;
+}
+
+async function getOrCreateStockId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  symbol: string,
+  market: string,
+) {
+  const { data: existingStock, error: selectError } = await supabase
+    .from("stocks")
+    .select("id")
+    .eq("symbol", symbol)
+    .eq("market", market)
+    .maybeSingle();
+
+  if (selectError) {
+    throw new Error(selectError.message);
+  }
+
+  if (existingStock) {
+    return (existingStock as StockRow).id;
+  }
+
+  const { data: createdStock, error: insertError } = await supabase
+    .from("stocks")
+    .insert({ symbol, market })
+    .select("id")
+    .single();
+
+  if (insertError) {
+    if (insertError.code === "23505") {
+      const { data: duplicatedStock, error: retryError } = await supabase
+        .from("stocks")
+        .select("id")
+        .eq("symbol", symbol)
+        .eq("market", market)
+        .single();
+
+      if (retryError) {
+        throw new Error(retryError.message);
+      }
+
+      return (duplicatedStock as StockRow).id;
+    }
+
+    throw new Error(insertError.message);
+  }
+
+  return (createdStock as StockRow).id;
+}
+
+export async function createQuickPost(
+  _previousState: QuickPostActionState,
+  formData: FormData,
+): Promise<QuickPostActionState> {
+  const title = normalizeText(formData.get("title"));
+  const content = normalizeText(formData.get("content"));
+  const rawPostType = normalizeText(formData.get("post_type"));
+  const sourceUrl = normalizeOptionalUrl(normalizeText(formData.get("source_url")));
+  const symbols = normalizeSymbolList(formData.get("symbols"));
+  const market = normalizeText(formData.get("market"))?.toUpperCase() ?? "US";
+  const referencePrice = normalizeOptionalPrice(normalizeText(formData.get("reference_price")));
+  const referenceCurrency =
+    normalizeText(formData.get("reference_currency"))?.toUpperCase() ?? "USD";
+
+  if (!content) {
+    return { error: "请输入内容。" };
+  }
+
+  if (!rawPostType || !isValidPostType(rawPostType)) {
+    return { error: "请选择有效的内容类型。" };
+  }
+
+  if (normalizeText(formData.get("source_url")) && !sourceUrl) {
+    return { error: "来源链接必须是有效的 http 或 https 地址。" };
+  }
+
+  if (normalizeText(formData.get("reference_price")) && referencePrice === null) {
+    return { error: "参考价格必须是大于或等于 0 的数字。" };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?next=/quick");
+  }
+
+  let postId: string;
+
+  try {
+    const stockIds =
+      symbols.length > 0
+        ? await Promise.all(symbols.map((symbol) => getOrCreateStockId(supabase, symbol, market)))
+        : [];
+
+    const { data: createdPost, error: postError } = await supabase
+      .from("posts")
+      .insert({
+        author_id: user.id,
+        title,
+        content,
+        post_type: rawPostType,
+        source_url: sourceUrl,
+        market,
+        reference_price: referencePrice,
+        reference_currency: referenceCurrency,
+      })
+      .select("id")
+      .single();
+
+    if (postError) {
+      throw new Error(postError.message);
+    }
+
+    postId = (createdPost as CreatedPostRow).id;
+
+    if (stockIds.length > 0) {
+      const relations = stockIds.map((stockId) => ({
+        post_id: postId,
+        stock_id: stockId,
+      }));
+
+      const { error: relationError } = await supabase.from("post_stocks").insert(relations);
+
+      if (relationError) {
+        throw new Error(relationError.message);
+      }
+    }
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "发布失败，请稍后重试。",
+    };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/quick");
+  redirect(`/posts/${postId}`);
+}

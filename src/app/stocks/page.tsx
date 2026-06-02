@@ -1,6 +1,9 @@
 import { PagePlaceholder } from "@/components/page-placeholder";
+import { requireUser } from "@/lib/auth/require-user";
 
-export default function StocksPage() {
+export default async function StocksPage() {
+  await requireUser("/stocks");
+
   return (
     <PagePlaceholder
       title="股票"

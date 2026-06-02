@@ -7,13 +7,13 @@ function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { user, response } = await updateSession(request);
 
   const { pathname } = request.nextUrl;
   const isPublic = isPublicPath(pathname);
 
-  // Redirect unauthenticated users to login for protected pages.
+  // Redirect unauthenticated users before protected pages render.
   if (!user && !isPublic) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
@@ -21,7 +21,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Redirect authenticated users away from login page.
+  // Keep signed-in users out of the login page.
   if (user && isPublic) {
     const redirectUrl = request.nextUrl.clone();
     const nextPath = request.nextUrl.searchParams.get("next");

@@ -1,6 +1,9 @@
 import { PagePlaceholder } from "@/components/page-placeholder";
+import { requireUser } from "@/lib/auth/require-user";
 
-export default function Home() {
+export default async function Home() {
+  await requireUser("/");
+
   return (
     <PagePlaceholder
       title="首页"

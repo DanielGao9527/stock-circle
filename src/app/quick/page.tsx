@@ -1,10 +1,8 @@
-import { PagePlaceholder } from "@/components/page-placeholder";
+import { QuickPostForm } from "@/components/quick-post-form";
+import { requireUser } from "@/lib/auth/require-user";
 
-export default function QuickPage() {
-  return (
-    <PagePlaceholder
-      title="发布"
-      description="这里将提供快速发布入口，用于创建笔记、链接和讨论内容。"
-    />
-  );
+export default async function QuickPage() {
+  await requireUser("/quick");
+
+  return <QuickPostForm />;
 }

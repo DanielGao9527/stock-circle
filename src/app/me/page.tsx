@@ -1,16 +1,8 @@
-import { redirect } from "next/navigation";
 import { SignOutButton } from "@/components/sign-out-button";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth/require-user";
 
 export default async function MePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+  const user = await requireUser("/me");
 
   return (
     <section className="space-y-4">

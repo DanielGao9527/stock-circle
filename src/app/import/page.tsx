@@ -1,6 +1,9 @@
 import { PagePlaceholder } from "@/components/page-placeholder";
+import { requireUser } from "@/lib/auth/require-user";
 
-export default function ImportPage() {
+export default async function ImportPage() {
+  await requireUser("/import");
+
   return (
     <PagePlaceholder
       title="导入"
