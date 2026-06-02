@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/app-shell";
@@ -14,8 +14,27 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "StockCircle",
-  description: "私有投资信息归档与讨论工具",
+  title: "持仓圈",
+  description: "私有持仓归档、复盘和讨论工具。",
+  applicationName: "持仓圈",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "持仓圈",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [{ url: "/icon", type: "image/png" }],
+    apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#2563eb",
+  colorScheme: "light",
 };
 
 export default function RootLayout({

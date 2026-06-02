@@ -16,7 +16,10 @@ export function MobileBottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white/95 backdrop-blur md:hidden">
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white/95 backdrop-blur md:hidden"
+      style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0px)" }}
+    >
       <ul className="mx-auto grid max-w-md grid-cols-6">
         {navItems.map((item) => {
           const isActive =
@@ -26,7 +29,7 @@ export function MobileBottomNav() {
             <li key={item.href}>
               <Link
                 href={item.href}
-                className={`flex flex-col items-center justify-center gap-1 py-2 text-xs ${
+                className={`flex min-h-16 flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] ${
                   isActive ? "text-blue-600" : "text-zinc-500"
                 }`}
               >

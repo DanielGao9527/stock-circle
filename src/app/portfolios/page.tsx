@@ -38,9 +38,9 @@ export default async function PortfoliosPage() {
   );
 
   return (
-    <section className="space-y-5">
-      <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="space-y-4 md:space-y-5">
+      <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">圈内持仓</h1>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
@@ -49,7 +49,7 @@ export default async function PortfoliosPage() {
           </div>
           <Link
             href="/portfolio"
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
+            className="inline-flex rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-50"
           >
             回到我的持仓
           </Link>
@@ -61,16 +61,16 @@ export default async function PortfoliosPage() {
           暂时还没有成员公开出最新持仓快照。
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="space-y-4">
           {latestEntries.map(({ userId, snapshot }) => {
             const snapshotItems = itemsBySnapshot.get(snapshot.id) ?? [];
 
             return (
               <article
                 key={snapshot.id}
-                className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
+                className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5"
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="text-sm text-zinc-500">成员</div>
                     <h2 className="mt-1 text-xl font-semibold text-zinc-900">
@@ -82,7 +82,7 @@ export default async function PortfoliosPage() {
                   </div>
                   <Link
                     href={`/portfolios/${userId}`}
-                    className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
+                    className="inline-flex rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-50"
                   >
                     查看详情
                   </Link>
@@ -91,28 +91,46 @@ export default async function PortfoliosPage() {
                 {snapshotItems.length === 0 ? (
                   <p className="mt-4 text-sm text-zinc-600">这份快照还没有持仓明细。</p>
                 ) : (
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="text-left text-zinc-500">
-                        <tr className="border-b border-zinc-200">
-                          <th className="py-2 pr-4 font-medium">股票</th>
-                          <th className="py-2 pr-4 font-medium">市场</th>
-                          <th className="py-2 pr-4 font-medium">仓位</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {snapshotItems.map((item) => (
-                          <tr key={item.id} className="border-b border-zinc-100 last:border-0">
-                            <td className="py-3 pr-4 font-medium text-zinc-900">{item.symbol}</td>
-                            <td className="py-3 pr-4 text-zinc-600">{item.market ?? "US"}</td>
-                            <td className="py-3 pr-4 text-zinc-700">
-                              {formatPositionChange(item.previous_percent, item.position_percent)}
-                            </td>
+                  <>
+                    <div className="mt-4 space-y-3 md:hidden">
+                      {snapshotItems.map((item) => (
+                        <div key={item.id} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="font-medium text-zinc-900">{item.symbol}</div>
+                            <span className="rounded-full bg-white px-2 py-0.5 text-xs text-zinc-600">
+                              {item.market ?? "US"}
+                            </span>
+                          </div>
+                          <div className="mt-2 text-sm text-zinc-700">
+                            {formatPositionChange(item.previous_percent, item.position_percent)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 hidden overflow-x-auto md:block">
+                      <table className="min-w-full text-sm">
+                        <thead className="text-left text-zinc-500">
+                          <tr className="border-b border-zinc-200">
+                            <th className="py-2 pr-4 font-medium">股票</th>
+                            <th className="py-2 pr-4 font-medium">市场</th>
+                            <th className="py-2 pr-4 font-medium">仓位</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {snapshotItems.map((item) => (
+                            <tr key={item.id} className="border-b border-zinc-100 last:border-0">
+                              <td className="py-3 pr-4 font-medium text-zinc-900">{item.symbol}</td>
+                              <td className="py-3 pr-4 text-zinc-600">{item.market ?? "US"}</td>
+                              <td className="py-3 pr-4 text-zinc-700">
+                                {formatPositionChange(item.previous_percent, item.position_percent)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </article>
             );

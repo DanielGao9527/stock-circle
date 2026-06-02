@@ -3,6 +3,8 @@
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
+  --theme-blue: #2563eb;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @theme inline {
@@ -12,8 +14,33 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html,
+body {
+  overflow-x: hidden;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+* {
+  min-width: 0;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }

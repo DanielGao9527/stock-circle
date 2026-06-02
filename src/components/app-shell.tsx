@@ -18,9 +18,9 @@ const desktopLinks = [
 export function AppShell({ children }: AppShellProps) {
   return (
     <div className="min-h-screen">
-      <header className="border-b border-zinc-200 bg-white">
+      <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
-          <div className="text-lg font-semibold tracking-tight">StockCircle</div>
+          <div className="text-lg font-semibold tracking-tight">持仓圈</div>
           <nav className="hidden items-center gap-4 md:flex">
             {desktopLinks.map((item) => (
               <Link
@@ -35,7 +35,9 @@ export function AppShell({ children }: AppShellProps) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl px-4 pb-24 pt-5 md:pb-8">{children}</main>
+      <main className="mx-auto w-full max-w-5xl px-4 pb-28 pt-4 md:px-5 md:pb-10 md:pt-6">
+        {children}
+      </main>
 
       <MobileBottomNav />
     </div>

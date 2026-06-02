@@ -127,9 +127,9 @@ export default async function PortfolioExportPage({ searchParams }: PortfolioExp
   });
 
   return (
-    <section className="space-y-5">
-      <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+    <section className="space-y-4 md:space-y-5">
+      <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">导出操作流</h1>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
@@ -138,14 +138,14 @@ export default async function PortfolioExportPage({ searchParams }: PortfolioExp
           </div>
           <Link
             href="/portfolio"
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
+            className="inline-flex rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-50"
           >
             返回我的持仓
           </Link>
         </div>
       </div>
 
-      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
         <h2 className="text-lg font-semibold">日期区间</h2>
         <form action="/portfolio/export" className="mt-4 grid gap-4 md:grid-cols-[1.2fr_1fr_1fr_auto]">
           <label className="block space-y-1">
@@ -153,7 +153,7 @@ export default async function PortfolioExportPage({ searchParams }: PortfolioExp
             <select
               name="range"
               defaultValue={resolvedRange.range}
-              className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-3 text-base outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:px-3 md:py-2 md:text-sm"
             >
               {rangeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -169,7 +169,7 @@ export default async function PortfolioExportPage({ searchParams }: PortfolioExp
               name="start"
               type="date"
               defaultValue={start ?? resolvedRange.startDate}
-              className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-xl border border-zinc-300 px-3 py-3 text-base outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:px-3 md:py-2 md:text-sm"
             />
           </label>
 
@@ -179,26 +179,26 @@ export default async function PortfolioExportPage({ searchParams }: PortfolioExp
               name="end"
               type="date"
               defaultValue={end ?? resolvedRange.endDate}
-              className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-xl border border-zinc-300 px-3 py-3 text-base outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:px-3 md:py-2 md:text-sm"
             />
           </label>
 
           <div className="flex items-end">
             <button
               type="submit"
-              className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 md:w-auto"
+              className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 md:w-auto md:px-4 md:py-2.5"
             >
               更新导出
             </button>
           </div>
         </form>
 
-        <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
+        <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-6 text-zinc-700">
           当前区间：{resolvedRange.rangeLabel}
         </div>
 
         {resolvedRange.notice ? (
-          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
             {resolvedRange.notice}
           </div>
         ) : null}
