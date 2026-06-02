@@ -116,7 +116,8 @@ export default async function PortfolioPage() {
     .eq("owner_id", user.id)
     .is("deleted_at", null)
     .neq("status", "hidden")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(20);
 
   if (snapshotError) {
     return (

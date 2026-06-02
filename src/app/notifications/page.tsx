@@ -1,9 +1,6 @@
 import { markAllNotificationsRead, openNotification } from "@/app/notifications/actions";
 import { requireUser } from "@/lib/auth/require-user";
-import {
-  getNotificationsForUser,
-  getUnreadNotificationCount,
-} from "@/lib/notifications/data";
+import { getNotificationsForUser } from "@/lib/notifications/data";
 import { createClient } from "@/lib/supabase/server";
 
 function formatTime(value: string) {
@@ -16,10 +13,11 @@ function formatTime(value: string) {
 export default async function NotificationsPage() {
   const user = await requireUser("/notifications");
   const supabase = await createClient();
-  const [notifications, unreadCount] = await Promise.all([
-    getNotificationsForUser(supabase, user.id),
-    getUnreadNotificationCount(supabase, user.id),
-  ]);
+  const notifications = await getNotificationsForUser(supabase, user.id);
+  const unreadCount = notifications.reduce(
+    (count, notification) => count + (notification.read_at ? 0 : 1),
+    0,
+  );
 
   return (
     <section className="space-y-4 md:space-y-5">

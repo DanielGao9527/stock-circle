@@ -44,7 +44,8 @@ export default async function MyPostsPage() {
     .eq("author_id", user.id)
     .is("deleted_at", null)
     .neq("status", "hidden")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(20);
 
   if (postError) {
     return (

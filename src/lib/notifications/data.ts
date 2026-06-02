@@ -69,7 +69,7 @@ export async function getNotificationsForUser(
     )
     .eq("recipient_id", userId)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(50);
 
   if (error) {
     throw new Error(error.message);

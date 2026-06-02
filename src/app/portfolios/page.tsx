@@ -4,15 +4,24 @@ import { getCommentCountsForTargets } from "@/lib/comments/data";
 import { getPortfolioItemDisplayName, splitPortfolioItems } from "@/lib/portfolio/item-display";
 import {
   getActivePortfolioSnapshots,
-  getLatestSnapshotsByUser,
   getPortfolioItemsForSnapshots,
-  getPortfolioProfileMap,
   getSnapshotEffectiveDate,
   getSnapshotTitle,
   groupPortfolioItemsBySnapshot,
+  type PortfolioSnapshotRow,
 } from "@/lib/portfolio/data";
 import { formatPositionChange } from "@/lib/portfolio/position-change";
 import { createClient } from "@/lib/supabase/server";
+
+type ProfileIdRow = {
+  id: string;
+  display_name: string;
+};
+
+type LatestEntry = {
+  userId: string;
+  snapshot: PortfolioSnapshotRow;
+};
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -24,21 +33,42 @@ export default async function PortfoliosPage() {
   await requireUser("/portfolios");
 
   const supabase = await createClient();
-  const snapshots = await getActivePortfolioSnapshots(supabase);
-  const latestSnapshotsByUser = getLatestSnapshotsByUser(snapshots);
-  const latestEntries = Array.from(latestSnapshotsByUser.entries()).map(([userId, snapshot]) => ({
-    userId,
-    snapshot,
-  }));
+  const { data: profileData, error: profileError } = await supabase
+    .from("profiles")
+    .select("id,display_name")
+    .eq("is_active", true);
+
+  if (profileError) {
+    throw new Error(profileError.message);
+  }
+
+  const profiles = (profileData ?? []) as ProfileIdRow[];
+  const profileIds = profiles.map((profile) => profile.id);
+  const profileNames = new Map(profiles.map((profile) => [profile.id, profile.display_name]));
+  const latestEntries = (
+    await Promise.all(
+      profileIds.map(async (userId) => {
+        const [snapshot] = await getActivePortfolioSnapshots(supabase, {
+          ownerId: userId,
+          limit: 1,
+        });
+
+        return snapshot
+          ? {
+              userId,
+              snapshot,
+            }
+          : null;
+      }),
+    )
+  )
+    .filter((entry): entry is LatestEntry => entry !== null)
+    .sort((a, b) => new Date(b.snapshot.created_at).getTime() - new Date(a.snapshot.created_at).getTime());
 
   const snapshotIds = latestEntries.map((entry) => entry.snapshot.id);
   const items = await getPortfolioItemsForSnapshots(supabase, snapshotIds);
   const commentCountsBySnapshot = await getCommentCountsForTargets(supabase, "snapshot", snapshotIds);
   const itemsBySnapshot = groupPortfolioItemsBySnapshot(items);
-  const profiles = await getPortfolioProfileMap(
-    supabase,
-    latestEntries.map((entry) => entry.userId),
-  );
 
   return (
     <section className="space-y-4 md:space-y-5">
@@ -78,7 +108,7 @@ export default async function PortfoliosPage() {
                   <div>
                     <div className="text-sm text-zinc-500">成员</div>
                     <h2 className="mt-1 text-xl font-semibold text-zinc-900">
-                      {profiles.get(userId) ?? `成员 ${userId.slice(0, 8)}`}
+                      {profileNames.get(userId) ?? `成员 ${userId.slice(0, 8)}`}
                     </h2>
                     <div className="mt-2 text-sm text-zinc-600">
                       {getSnapshotTitle(snapshot)} · {formatDate(getSnapshotEffectiveDate(snapshot))}

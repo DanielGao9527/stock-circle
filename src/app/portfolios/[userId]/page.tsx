@@ -116,6 +116,7 @@ export default async function PortfolioUserDetailPage({ params }: PortfolioUserD
 
   const snapshots = await getActivePortfolioSnapshots(supabase, {
     ownerId: userId,
+    limit: 20,
   });
   const profileMap = await getPortfolioProfileMap(supabase, [userId]);
 
