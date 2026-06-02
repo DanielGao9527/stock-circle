@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { ensureProfile } from "@/lib/profiles/ensure-profile";
 import { createClient } from "@/lib/supabase/server";
 import { postTypes, type PostType, type QuickPostActionState } from "@/lib/posts/types";
 
@@ -143,6 +144,8 @@ export async function createQuickPost(
   if (!user) {
     redirect("/login?next=/quick");
   }
+
+  await ensureProfile(supabase, user);
 
   let postId: string;
 
