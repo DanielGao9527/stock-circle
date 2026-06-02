@@ -115,23 +115,24 @@ export default async function Home() {
   const user = await requireUser("/");
   const supabase = await createClient();
 
-  await ensureProfile(supabase, user);
-
-  const { data: postData, error: postError } = await supabase
-    .from("posts")
-    .select("id,author_id,title,content,post_type,created_at")
-    .is("deleted_at", null)
-    .neq("status", "hidden")
-    .order("created_at", { ascending: false })
-    .limit(20);
-
-  const { data: snapshotData, error: snapshotError } = await supabase
-    .from("portfolio_snapshots")
-    .select("id,owner_id,created_by,title,notes,created_at")
-    .is("deleted_at", null)
-    .neq("status", "hidden")
-    .order("created_at", { ascending: false })
-    .limit(20);
+  const [, { data: postData, error: postError }, { data: snapshotData, error: snapshotError }] =
+    await Promise.all([
+      ensureProfile(supabase, user),
+      supabase
+        .from("posts")
+        .select("id,author_id,title,content,post_type,created_at")
+        .is("deleted_at", null)
+        .neq("status", "hidden")
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("portfolio_snapshots")
+        .select("id,owner_id,created_by,title,notes,created_at")
+        .is("deleted_at", null)
+        .neq("status", "hidden")
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
 
   if (postError) {
     return (
@@ -155,67 +156,58 @@ export default async function Home() {
     ] as string[]),
   );
 
-  const profiles = await getProfiles(supabase, authorIds);
+  const [profiles, relationDataResult, postCommentCounts, snapshotCommentCounts, itemDataResult] =
+    await Promise.all([
+      getProfiles(supabase, authorIds),
+      postIds.length > 0
+        ? supabase.from("post_stocks").select("post_id,stock_id").in("post_id", postIds)
+        : Promise.resolve({ data: [], error: null }),
+      postIds.length > 0
+        ? getCommentCountsForTargets(supabase, "post", postIds)
+        : Promise.resolve(new Map<string, number>()),
+      snapshotIds.length > 0
+        ? getCommentCountsForTargets(supabase, "snapshot", snapshotIds)
+        : Promise.resolve(new Map<string, number>()),
+      snapshotIds.length > 0
+        ? supabase
+            .from("portfolio_items")
+            .select("snapshot_id,symbol,previous_percent,position_percent")
+            .in("snapshot_id", snapshotIds)
+            .limit(60)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
 
   let postSymbols = new Map<string, string[]>();
+  const relations = (relationDataResult.data ?? []) as PostStockRow[];
+  const stockIds = Array.from(new Set(relations.map((relation) => relation.stock_id)));
 
-  if (postIds.length > 0) {
-    const { data: relationData } = await supabase
-      .from("post_stocks")
-      .select("post_id,stock_id")
-      .in("post_id", postIds);
+  if (stockIds.length > 0) {
+    const { data: stockData } = await supabase.from("stocks").select("id,symbol").in("id", stockIds);
+    const stocks = (stockData ?? []) as StockRow[];
+    const stockMap = new Map(stocks.map((stock) => [stock.id, stock.symbol]));
 
-    const relations = (relationData ?? []) as PostStockRow[];
-    const stockIds = Array.from(new Set(relations.map((relation) => relation.stock_id)));
-
-    if (stockIds.length > 0) {
-      const { data: stockData } = await supabase
-        .from("stocks")
-        .select("id,symbol")
-        .in("id", stockIds);
-      const stocks = (stockData ?? []) as StockRow[];
-      const stockMap = new Map(stocks.map((stock) => [stock.id, stock.symbol]));
-
-      postSymbols = relations.reduce((map, relation) => {
-        const symbol = stockMap.get(relation.stock_id);
-        if (!symbol) {
-          return map;
-        }
-
-        map.set(relation.post_id, [...(map.get(relation.post_id) ?? []), symbol]);
+    postSymbols = relations.reduce((map, relation) => {
+      const symbol = stockMap.get(relation.stock_id);
+      if (!symbol) {
         return map;
-      }, new Map<string, string[]>());
-    }
+      }
+
+      map.set(relation.post_id, [...(map.get(relation.post_id) ?? []), symbol]);
+      return map;
+    }, new Map<string, string[]>());
   }
 
   let snapshotItems = new Map<string, PortfolioItemRow[]>();
-  let postCommentCounts = new Map<string, number>();
-  let snapshotCommentCounts = new Map<string, number>();
+  const itemError = itemDataResult.error;
 
-  if (postIds.length > 0) {
-    postCommentCounts = await getCommentCountsForTargets(supabase, "post", postIds);
-  }
-
-  if (snapshotIds.length > 0) {
-    snapshotCommentCounts = await getCommentCountsForTargets(supabase, "snapshot", snapshotIds);
-  }
-
-  if (snapshotIds.length > 0) {
-    const { data: itemData, error: itemError } = await supabase
-      .from("portfolio_items")
-      .select("snapshot_id,symbol,previous_percent,position_percent")
-      .in("snapshot_id", snapshotIds)
-      .limit(60);
-
-    if (!itemError || !isMissingTableError(itemError)) {
-      snapshotItems = ((itemData ?? []) as PortfolioItemRow[]).reduce((map, item) => {
-        const currentItems = map.get(item.snapshot_id) ?? [];
-        if (currentItems.length < 3) {
-          map.set(item.snapshot_id, [...currentItems, item]);
-        }
-        return map;
-      }, new Map<string, PortfolioItemRow[]>());
-    }
+  if (!itemError || !isMissingTableError(itemError)) {
+    snapshotItems = ((itemDataResult.data ?? []) as PortfolioItemRow[]).reduce((map, item) => {
+      const currentItems = map.get(item.snapshot_id) ?? [];
+      if (currentItems.length < 3) {
+        map.set(item.snapshot_id, [...currentItems, item]);
+      }
+      return map;
+    }, new Map<string, PortfolioItemRow[]>());
   }
 
   const feedItems: FeedItem[] = [

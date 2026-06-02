@@ -150,6 +150,28 @@ export async function getPortfolioProfileMap(
   return new Map(((data ?? []) as ProfileRow[]).map((profile) => [profile.id, profile.display_name]));
 }
 
+export async function getLatestActiveSnapshotsForUsers(
+  supabase: SupabaseServerClient,
+  userIds: string[],
+) {
+  if (userIds.length === 0) {
+    return [] as PortfolioSnapshotRow[];
+  }
+
+  const snapshots = await Promise.all(
+    userIds.map(async (userId) => {
+      const [snapshot] = await getActivePortfolioSnapshots(supabase, {
+        ownerId: userId,
+        limit: 1,
+      });
+
+      return snapshot ?? null;
+    }),
+  );
+
+  return snapshots.filter((snapshot): snapshot is PortfolioSnapshotRow => snapshot !== null);
+}
+
 export function groupPortfolioItemsBySnapshot(items: PortfolioItemRow[]) {
   return items.reduce((map, item) => {
     const currentItems = map.get(item.snapshot_id) ?? [];

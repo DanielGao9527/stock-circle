@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/require-user";
 import { getCommentCountsForTargets } from "@/lib/comments/data";
+import {
+  getLatestActiveSnapshotsForUsers,
+  type PortfolioSnapshotRow,
+} from "@/lib/portfolio/data";
 import { actionTypeLabels, formatPositionChange } from "@/lib/portfolio/position-change";
 import { postTypeLabels, type PostType } from "@/lib/posts/types";
 import { createClient } from "@/lib/supabase/server";
@@ -10,6 +14,11 @@ type StockRow = {
   symbol: string;
   market: string;
   name: string | null;
+};
+
+type ProfileRow = {
+  id: string;
+  display_name: string;
 };
 
 type PostRelationRow = {
@@ -25,19 +34,7 @@ type PostRow = {
   created_at: string;
 };
 
-type ProfileRow = {
-  id: string;
-  display_name: string;
-};
-
-type SnapshotRow = {
-  id: string;
-  owner_id: string | null;
-  created_by: string | null;
-  title: string | null;
-  snapshot_date: string | null;
-  created_at: string;
-};
+type SnapshotRow = PortfolioSnapshotRow;
 
 type SnapshotItemRow = {
   id: string;
@@ -55,12 +52,19 @@ type SnapshotItemRow = {
   created_at: string;
 };
 
+type ProfileIdRow = {
+  id: string;
+};
+
 type StockDetailPageProps = {
   params: Promise<{
     market: string;
     symbol: string;
   }>;
 };
+
+const POST_LIMIT = 20;
+const ITEM_HISTORY_LIMIT = 50;
 
 function decodeParam(value: string) {
   return decodeURIComponent(value).trim().toUpperCase();
@@ -103,10 +107,7 @@ async function getProfiles(
     return new Map<string, string>();
   }
 
-  const { data } = await supabase
-    .from("profiles")
-    .select("id,display_name")
-    .in("id", userIds);
+  const { data } = await supabase.from("profiles").select("id,display_name").in("id", userIds);
 
   return new Map(((data ?? []) as ProfileRow[]).map((profile) => [profile.id, profile.display_name]));
 }
@@ -119,14 +120,22 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
   await requireUser(`/stocks/${market}/${symbol}`);
 
   const supabase = await createClient();
-  const { data: stockData } = await supabase
-    .from("stocks")
-    .select("id,symbol,market,name")
-    .eq("symbol", symbol)
-    .eq("market", market)
-    .maybeSingle();
+  const [{ data: stockData }, { data: profileData }] = await Promise.all([
+    supabase
+      .from("stocks")
+      .select("id,symbol,market,name")
+      .eq("symbol", symbol)
+      .eq("market", market)
+      .maybeSingle(),
+    supabase.from("profiles").select("id").eq("is_active", true),
+  ]);
 
   const stock = stockData as StockRow | null;
+  const profileIds = ((profileData ?? []) as ProfileIdRow[]).map((profile) => profile.id);
+  const latestSnapshots = await getLatestActiveSnapshotsForUsers(supabase, profileIds);
+  const latestSnapshotIds = latestSnapshots.map((snapshot) => snapshot.id);
+  const latestSnapshotsById = new Map(latestSnapshots.map((snapshot) => [snapshot.id, snapshot]));
+
   let posts: PostRow[] = [];
 
   if (stock) {
@@ -143,55 +152,64 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
         .in("id", postIds)
         .is("deleted_at", null)
         .neq("status", "hidden")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(POST_LIMIT);
 
       posts = (postData ?? []) as PostRow[];
     }
   }
 
-  const { data: snapshotData } = await supabase
-    .from("portfolio_snapshots")
-    .select("id,owner_id,created_by,title,snapshot_date,created_at")
-    .is("deleted_at", null)
-    .neq("status", "hidden")
-    .order("created_at", { ascending: false })
-    .limit(200);
-  const snapshots = (snapshotData ?? []) as SnapshotRow[];
-  const snapshotById = new Map(snapshots.map((snapshot) => [snapshot.id, snapshot]));
-  const latestSnapshotByUser = new Map<string, SnapshotRow>();
+  const [{ data: latestItemData }, { data: historyItemData }] = await Promise.all([
+    latestSnapshotIds.length > 0
+      ? supabase
+          .from("portfolio_items")
+          .select(
+            "id,snapshot_id,symbol,market,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,note,created_at",
+          )
+          .in("snapshot_id", latestSnapshotIds)
+          .eq("symbol", symbol)
+      : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from("portfolio_items")
+      .select(
+        "id,snapshot_id,symbol,market,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,note,created_at",
+      )
+      .eq("symbol", symbol)
+      .order("created_at", { ascending: false })
+      .limit(ITEM_HISTORY_LIMIT),
+  ]);
 
-  snapshots.forEach((snapshot) => {
-    const userId = getUserId(snapshot);
-    if (userId && !latestSnapshotByUser.has(userId)) {
-      latestSnapshotByUser.set(userId, snapshot);
-    }
+  const latestHolderItems = ((latestItemData ?? []) as SnapshotItemRow[]).filter(
+    (item) => (item.market ?? "US").toUpperCase() === market,
+  );
+  const historyItems = ((historyItemData ?? []) as SnapshotItemRow[]).filter(
+    (item) => (item.market ?? "US").toUpperCase() === market,
+  );
+
+  const historySnapshotIds = Array.from(new Set(historyItems.map((item) => item.snapshot_id)));
+  const missingSnapshotIds = historySnapshotIds.filter((snapshotId) => !latestSnapshotsById.has(snapshotId));
+  const { data: historySnapshotData } = missingSnapshotIds.length
+    ? await supabase
+        .from("portfolio_snapshots")
+        .select("id,owner_id,created_by,title,snapshot_date,created_at")
+        .in("id", missingSnapshotIds)
+        .is("deleted_at", null)
+        .neq("status", "hidden")
+    : { data: [] };
+
+  const snapshotById = new Map<string, SnapshotRow>(latestSnapshotsById);
+
+  ((historySnapshotData ?? []) as SnapshotRow[]).forEach((snapshot) => {
+    snapshotById.set(snapshot.id, snapshot);
   });
 
-  const { data: itemData } = await supabase
-    .from("portfolio_items")
-    .select(
-      "id,snapshot_id,symbol,market,previous_percent,position_percent,action_type,change_reason,cost_price,reference_price,currency,note,created_at",
-    )
-    .eq("symbol", symbol)
-    .order("created_at", { ascending: false })
-    .limit(100);
-  const relatedItems = ((itemData ?? []) as SnapshotItemRow[]).filter(
-    (item) => (item.market ?? "US").toUpperCase() === market && snapshotById.has(item.snapshot_id),
-  );
-
-  const latestSnapshotIds = new Set(
-    Array.from(latestSnapshotByUser.values()).map((snapshot) => snapshot.id),
-  );
-  const holderEntriesByUser = relatedItems.reduce(
+  const relatedItems = historyItems.filter((item) => snapshotById.has(item.snapshot_id));
+  const holderEntriesByUser = latestHolderItems.reduce(
     (map, item) => {
-      if (!latestSnapshotIds.has(item.snapshot_id) || !isCurrentHolding(item.position_percent)) {
-        return map;
-      }
-
-      const snapshot = snapshotById.get(item.snapshot_id);
+      const snapshot = latestSnapshotsById.get(item.snapshot_id);
       const userId = snapshot ? getUserId(snapshot) : null;
 
-      if (userId && snapshot && !map.has(userId)) {
+      if (userId && snapshot && isCurrentHolding(item.position_percent) && !map.has(userId)) {
         map.set(userId, { item, snapshot });
       }
 
@@ -199,25 +217,23 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
     },
     new Map<string, { item: SnapshotItemRow; snapshot: SnapshotRow }>(),
   );
-  const holderEntries = Array.from(holderEntriesByUser.entries()).map(
-    ([userId, { item, snapshot }]) => ({
-      userId,
-      item,
-      snapshot,
-    }),
-  );
+
+  const holderEntries = Array.from(holderEntriesByUser.entries()).map(([userId, value]) => ({
+    userId,
+    item: value.item,
+    snapshot: value.snapshot,
+  }));
   const userIds = Array.from(
-    new Set([
-      ...posts.map((post) => post.author_id),
-      ...holderEntries.map((entry) => entry.userId),
-    ] as string[]),
+    new Set([...posts.map((post) => post.author_id), ...holderEntries.map((entry) => entry.userId)]),
   );
-  const profiles = await getProfiles(supabase, userIds);
-  const commentCountsByPost = await getCommentCountsForTargets(
-    supabase,
-    "post",
-    posts.map((post) => post.id),
-  );
+  const [profiles, commentCountsByPost] = await Promise.all([
+    getProfiles(supabase, userIds),
+    getCommentCountsForTargets(
+      supabase,
+      "post",
+      posts.map((post) => post.id),
+    ),
+  ]);
 
   return (
     <section className="space-y-4">
@@ -267,7 +283,7 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold">最新持有人</h2>
         {holderEntries.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-600">最新持仓快照中暂未看到该股票。</p>
+          <p className="mt-3 text-sm text-zinc-600">最新持仓快照中暂未看到这只股票。</p>
         ) : (
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {holderEntries.map(({ userId, item, snapshot }) => (
@@ -318,9 +334,7 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
                     <div className="rounded-lg bg-zinc-50 p-3">
                       <div className="text-zinc-500">现价</div>
                       <div className="mt-1 text-zinc-900">
-                        {item.reference_price
-                          ? `${item.reference_price} ${item.currency ?? ""}`
-                          : "未填写"}
+                        {item.reference_price ? `${item.reference_price} ${item.currency ?? ""}` : "未填写"}
                       </div>
                     </div>
                   </div>
@@ -329,13 +343,9 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
                       {actionTypeLabels[item.action_type] ?? item.action_type}
                     </div>
                   ) : null}
-                  {item.note ? (
-                    <p className="mt-3 text-sm leading-6 text-zinc-600">{item.note}</p>
-                  ) : null}
+                  {item.note ? <p className="mt-3 text-sm leading-6 text-zinc-600">{item.note}</p> : null}
                   {item.change_reason ? (
-                    <p className="mt-2 text-sm leading-6 text-zinc-600">
-                      变化原因：{item.change_reason}
-                    </p>
+                    <p className="mt-2 text-sm leading-6 text-zinc-600">变化原因：{item.change_reason}</p>
                   ) : null}
                 </div>
               );
