@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CommentsSection } from "@/components/comments-section";
 import { requireUser } from "@/lib/auth/require-user";
+import { getCommentsForTarget } from "@/lib/comments/data";
 import { postTypeLabels, type PostType } from "@/lib/posts/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -32,9 +34,16 @@ type PostDetailPageProps = {
   }>;
 };
 
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 export default async function PostDetailPage({ params }: PostDetailPageProps) {
   const { id } = await params;
-  await requireUser(`/posts/${id}`);
+  const user = await requireUser(`/posts/${id}`);
 
   const supabase = await createClient();
   const { data: postData, error: postError } = await supabase
@@ -83,10 +92,7 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
     stocks = (stockData ?? []) as StockRow[];
   }
 
-  const createdAt = new Intl.DateTimeFormat("zh-CN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(post.created_at));
+  const comments = await getCommentsForTarget(supabase, "post", post.id);
 
   return (
     <article className="space-y-4">
@@ -95,16 +101,14 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
           <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">
             {postTypeLabels[post.post_type]}
           </span>
-          <span>{createdAt}</span>
+          <span>{formatTime(post.created_at)}</span>
         </div>
 
         <h1 className="mt-3 text-2xl font-semibold tracking-tight">
           {post.title ?? "未命名记录"}
         </h1>
 
-        <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-zinc-700">
-          {post.content}
-        </p>
+        <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-zinc-700">{post.content}</p>
       </div>
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
@@ -163,6 +167,13 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
           </div>
         </dl>
       </section>
+
+      <CommentsSection
+        targetType="post"
+        targetId={post.id}
+        comments={comments}
+        currentUserId={user.id}
+      />
     </article>
   );
 }

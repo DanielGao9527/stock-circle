@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CommentsSection } from "@/components/comments-section";
 import { PortfolioSnapshotDeleteButton } from "@/components/portfolio-snapshot-delete-button";
 import { requireUser } from "@/lib/auth/require-user";
+import { getCommentsForTarget } from "@/lib/comments/data";
 import { actionTypeLabels, formatPositionChange } from "@/lib/portfolio/position-change";
 import { createClient } from "@/lib/supabase/server";
 
@@ -76,6 +78,7 @@ export default async function SnapshotDetailPage({ params }: SnapshotDetailPageP
   }
 
   const items = (itemData ?? []) as PortfolioItemRow[];
+  const comments = await getCommentsForTarget(supabase, "snapshot", snapshot.id);
 
   return (
     <section className="space-y-4">
@@ -176,6 +179,13 @@ export default async function SnapshotDetailPage({ params }: SnapshotDetailPageP
           </div>
         )}
       </section>
+
+      <CommentsSection
+        targetType="snapshot"
+        targetId={snapshot.id}
+        comments={comments}
+        currentUserId={user.id}
+      />
     </section>
   );
 }

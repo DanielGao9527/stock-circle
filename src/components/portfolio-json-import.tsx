@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { CopyTextButton } from "@/components/copy-text-button";
 import {
@@ -48,6 +48,16 @@ type PositionJson = {
   note?: unknown;
 };
 
+type LatestPositionSeed = {
+  symbol: string;
+  market: string;
+  previousPercent: string;
+};
+
+type PortfolioJsonImportProps = {
+  latestPositions: LatestPositionSeed[];
+};
+
 const initialState: PortfolioSnapshotActionState = {};
 
 const actionTypeOptions = [
@@ -67,7 +77,6 @@ const exampleJson = `{
     {
       "symbol": "MU",
       "market": "US",
-      "previousPercent": 20,
       "positionPercent": 30,
       "actionType": "increase",
       "costPrice": 85.2,
@@ -120,43 +129,27 @@ function normalizeActionType(value: unknown) {
   return actionTypeOptions.some((option) => option.value === text) ? text : "";
 }
 
-function normalizePosition(value: unknown, index: number): ImportPosition | { error: string } {
-  if (!isObject(value)) {
-    return { error: `第 ${index + 1} 条 position 必须是对象。` };
+function createDraftId(symbol: string, market: string, index: number) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
   }
 
-  const position = value as PositionJson;
-  const symbol = toText(position.symbol).toUpperCase();
-  const positionPercent = toNumberText(position.positionPercent);
-
-  if (!symbol) {
-    return { error: `第 ${index + 1} 条 position 缺少 symbol。` };
-  }
-
-  if (!positionPercent) {
-    return { error: `第 ${index + 1} 条 position 缺少 positionPercent。` };
-  }
-
-  return {
-    id: `${symbol}-${Date.now()}-${index}`,
-    symbol,
-    market: toText(position.market).toUpperCase() || "US",
-    previous_percent: toNumberText(position.previousPercent),
-    position_percent: positionPercent,
-    action_type: normalizeActionType(position.actionType),
-    cost_price: toNumberText(position.costPrice),
-    reference_price: toNumberText(position.referencePrice),
-    currency: toText(position.currency).toUpperCase() || "USD",
-    change_reason: toText(position.changeReason),
-    note: toText(position.note),
-  };
+  return `${symbol}-${market}-${Date.now()}-${index}`;
 }
 
-export function PortfolioJsonImport() {
+export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProps) {
   const [jsonText, setJsonText] = useState("");
   const [draft, setDraft] = useState<ImportDraft | null>(null);
   const [parseError, setParseError] = useState("");
   const [state, formAction] = useActionState(createPortfolioSnapshot, initialState);
+  const latestPositionMap = useMemo(
+    () =>
+      latestPositions.reduce((map, item) => {
+        map.set(`${item.symbol}|${item.market}`, item.previousPercent);
+        return map;
+      }, new Map<string, string>()),
+    [latestPositions],
+  );
 
   function fillExampleTemplate() {
     setJsonText(exampleJson);
@@ -190,6 +183,41 @@ export function PortfolioJsonImport() {
         positions: currentDraft.positions.filter((position) => position.id !== rowId),
       };
     });
+  }
+
+  function normalizePosition(value: unknown, index: number): ImportPosition | { error: string } {
+    if (!isObject(value)) {
+      return { error: `第 ${index + 1} 条 position 必须是对象。` };
+    }
+
+    const position = value as PositionJson;
+    const symbol = toText(position.symbol).toUpperCase();
+    const market = toText(position.market).toUpperCase() || "US";
+    const positionPercent = toNumberText(position.positionPercent);
+
+    if (!symbol) {
+      return { error: `第 ${index + 1} 条 position 缺少 symbol。` };
+    }
+
+    if (!positionPercent) {
+      return { error: `第 ${index + 1} 条 position 缺少 positionPercent。` };
+    }
+
+    const fallbackPreviousPercent = latestPositionMap.get(`${symbol}|${market}`) ?? "";
+
+    return {
+      id: createDraftId(symbol, market, index),
+      symbol,
+      market,
+      previous_percent: toNumberText(position.previousPercent) || fallbackPreviousPercent,
+      position_percent: positionPercent,
+      action_type: normalizeActionType(position.actionType),
+      cost_price: toNumberText(position.costPrice),
+      reference_price: toNumberText(position.referencePrice),
+      currency: toText(position.currency).toUpperCase() || "USD",
+      change_reason: toText(position.changeReason),
+      note: toText(position.note),
+    };
   }
 
   function handleParseJson() {
@@ -248,7 +276,7 @@ export function PortfolioJsonImport() {
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">组合 JSON 导入</h1>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
-          把券商文字、截图识别文字或聊天记录交给外部 AI 工具生成 StockCircle JSON，再粘贴到这里。本页只做本地解析，不调用任何 AI API。
+          把券商文字、截图识别文字或聊天记录交给外部工具生成 StockCircle JSON，再粘贴到这里。这里不会调用任何 AI API。
         </p>
       </div>
 
@@ -272,7 +300,7 @@ export function PortfolioJsonImport() {
           </div>
         </div>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
-          可以先复制模板交给外部工具补全，再回到这里粘贴解析。模板字段已经覆盖仓位变化、加减仓原因和价格信息。
+          模板默认不要求 `previousPercent`。如果你没有提供它，系统会尝试用你最近一次持仓快照里同股票的当前仓位自动回填到草稿里。
         </p>
         <pre className="mt-3 overflow-x-auto rounded-2xl border border-zinc-200 bg-zinc-50 p-4 font-mono text-sm leading-6 text-zinc-800">
           {exampleJson}
@@ -305,10 +333,15 @@ export function PortfolioJsonImport() {
       </div>
 
       {draft ? (
-        <form action={formAction} className="space-y-5 rounded-2xl border border-blue-100 bg-blue-50/40 p-5">
+        <form
+          action={formAction}
+          className="space-y-5 rounded-2xl border border-blue-100 bg-blue-50/40 p-5"
+        >
           <div>
             <h2 className="text-lg font-semibold">草稿预览</h2>
-            <p className="mt-1 text-sm text-zinc-600">保存前可以编辑标题、备注和每一行持仓变化。</p>
+            <p className="mt-1 text-sm text-zinc-600">
+              保存前可以编辑标题、备注和每一行持仓变化。
+            </p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
