@@ -10,6 +10,99 @@ function normalizePastedCharacters(text: string) {
     .replace(/[\u2018\u2019]/g, "'");
 }
 
+function normalizeStructuralPunctuation(text: string) {
+  let normalized = "";
+  let inString = false;
+  let escaped = false;
+
+  const structuralMap: Record<string, string> = {
+    "\uff5b": "{",
+    "\uff5d": "}",
+    "\uff3b": "[",
+    "\uff3d": "]",
+    "\uff1a": ":",
+    "\uff0c": ",",
+  };
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (escaped) {
+      normalized += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      normalized += char;
+      escaped = inString;
+      continue;
+    }
+
+    if (char === '"') {
+      normalized += char;
+      inString = !inString;
+      continue;
+    }
+
+    normalized += inString ? char : structuralMap[char] ?? char;
+  }
+
+  return normalized;
+}
+
+function escapeLiteralLineBreaksInStrings(text: string) {
+  let normalized = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (escaped) {
+      normalized += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      normalized += char;
+      escaped = inString;
+      continue;
+    }
+
+    if (char === '"') {
+      normalized += char;
+      inString = !inString;
+      continue;
+    }
+
+    if (inString && char === "\r") {
+      normalized += "\\n";
+
+      if (text[index + 1] === "\n") {
+        index += 1;
+      }
+
+      continue;
+    }
+
+    if (inString && char === "\n") {
+      normalized += "\\n";
+      continue;
+    }
+
+    if (inString && char === "\t") {
+      normalized += "\\t";
+      continue;
+    }
+
+    normalized += char;
+  }
+
+  return normalized;
+}
+
 function extractFirstJsonObject(text: string) {
   const start = text.indexOf("{");
 
@@ -67,7 +160,9 @@ export function normalizeJsonInput(text: string) {
   }
 
   const unfenced = stripCodeFence(trimmed);
-  const normalized = normalizePastedCharacters(unfenced).trim();
+  const normalized = escapeLiteralLineBreaksInStrings(
+    normalizeStructuralPunctuation(normalizePastedCharacters(unfenced)),
+  ).trim();
 
   return extractFirstJsonObject(normalized);
 }
