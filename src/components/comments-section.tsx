@@ -175,7 +175,7 @@ function CommentItem({
 
   return (
     <div className={indentClassName(depth)}>
-      <article className="rounded-xl border border-zinc-200 bg-white p-4">
+      <article id={`comment-${node.id}`} className="scroll-mt-24 rounded-xl border border-zinc-200 bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-zinc-500">
             <span className="font-medium text-zinc-900">{node.authorName}</span>

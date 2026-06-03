@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { getNotificationHref, getNotificationTargetLabel } from "@/lib/notifications/routes";
 
 export type NotificationRow = {
   id: string;
   recipient_id: string;
   actor_id: string;
   notification_type: string;
-  target_type: "post" | "snapshot";
+  target_type: string;
   target_id: string;
   comment_id: string | null;
   summary: string | null;
@@ -16,7 +17,9 @@ export type NotificationRow = {
 export type NotificationListItem = NotificationRow & {
   actorName: string;
   targetTitle: string;
-  href: string;
+  targetLabel: string;
+  targetAvailable: boolean;
+  href: string | null;
 };
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -39,6 +42,10 @@ type SnapshotTargetRow = {
 
 function getPreview(value: string) {
   return value.length > 60 ? `${value.slice(0, 60)}...` : value;
+}
+
+function isSnapshotTargetType(value: string) {
+  return value === "snapshot" || value === "portfolio_snapshot";
 }
 
 export async function getUnreadNotificationCount(
@@ -77,12 +84,20 @@ export async function getNotificationsForUser(
 
   const notifications = (data ?? []) as NotificationRow[];
   const actorIds = Array.from(new Set(notifications.map((notification) => notification.actor_id)));
-  const postIds = notifications
-    .filter((notification) => notification.target_type === "post")
-    .map((notification) => notification.target_id);
-  const snapshotIds = notifications
-    .filter((notification) => notification.target_type === "snapshot")
-    .map((notification) => notification.target_id);
+  const postIds = Array.from(
+    new Set(
+      notifications
+        .filter((notification) => notification.target_type === "post")
+        .map((notification) => notification.target_id),
+    ),
+  );
+  const snapshotIds = Array.from(
+    new Set(
+      notifications
+        .filter((notification) => isSnapshotTargetType(notification.target_type))
+        .map((notification) => notification.target_id),
+    ),
+  );
 
   let actorNames = new Map<string, string>();
   let postTitles = new Map<string, string>();
@@ -143,17 +158,24 @@ export async function getNotificationsForUser(
     );
   }
 
-  return notifications.map((notification) => ({
-    ...notification,
-    actorName:
-      actorNames.get(notification.actor_id) ?? `成员 ${notification.actor_id.slice(0, 8)}`,
-    targetTitle:
+  return notifications.map((notification) => {
+    const href = getNotificationHref(notification);
+    const targetLabel = getNotificationTargetLabel(notification.target_type);
+    const targetTitle =
       notification.target_type === "post"
-        ? postTitles.get(notification.target_id) ?? "已删除或不可见的帖子"
-        : snapshotTitles.get(notification.target_id) ?? "已删除或不可见的持仓快照",
-    href:
-      notification.target_type === "post"
-        ? `/posts/${notification.target_id}`
-        : `/portfolio/snapshots/${notification.target_id}`,
-  })) satisfies NotificationListItem[];
+        ? postTitles.get(notification.target_id)
+        : isSnapshotTargetType(notification.target_type)
+          ? snapshotTitles.get(notification.target_id)
+          : null;
+
+    return {
+      ...notification,
+      actorName:
+        actorNames.get(notification.actor_id) ?? `成员 ${notification.actor_id.slice(0, 8)}`,
+      targetTitle: targetTitle ?? `${targetLabel}已删除或不可见`,
+      targetLabel,
+      targetAvailable: Boolean(href && targetTitle),
+      href,
+    };
+  }) satisfies NotificationListItem[];
 }
