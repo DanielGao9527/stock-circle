@@ -1,9 +1,9 @@
 import { handleSendDailyDigest } from "@/lib/digest/send-daily-digest-cron";
 
 export async function GET(request: Request) {
-  return handleSendDailyDigest(request, { source: "manual-or-default-cron" });
+  return handleSendDailyDigest(request, { source: "dst-cron" });
 }
 
 export async function POST(request: Request) {
-  return handleSendDailyDigest(request, { source: "manual-or-default-cron" });
+  return handleSendDailyDigest(request, { source: "dst-cron" });
 }
