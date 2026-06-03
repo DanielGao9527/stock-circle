@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createQuickPost } from "@/app/quick/actions";
+import { normalizeJsonInput } from "@/lib/json/normalize-json-input";
 import {
   postTypeLabels,
   postTypes,
@@ -523,10 +524,17 @@ function AiJsonImportMode({
   }
 
   function handleParseJson() {
+    const normalizedJsonText = normalizeJsonInput(jsonText);
+
+    if (!normalizedJsonText) {
+      setError("请先粘贴一段 JSON 再解析。");
+      return;
+    }
+
     let parsed: JsonDraftInput;
 
     try {
-      parsed = JSON.parse(jsonText) as JsonDraftInput;
+      parsed = JSON.parse(normalizedJsonText) as JsonDraftInput;
     } catch {
       setError("JSON 格式无效，请检查逗号、引号和括号。");
       return;
