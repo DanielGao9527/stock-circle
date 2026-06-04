@@ -6,11 +6,10 @@ function stripCodeFence(text: string) {
 function normalizePastedCharacters(text: string) {
   return text
     .replace(/^\uFEFF/, "")
-    .replace(/[\u201c\u201d\u301d\u301e\u3003]/g, '"')
     .replace(/[\u2018\u2019]/g, "'");
 }
 
-function normalizeStructuralPunctuation(text: string) {
+function normalizeSmartQuotedJson(text: string) {
   let normalized = "";
   let inString = false;
   let escaped = false;
@@ -23,6 +22,22 @@ function normalizeStructuralPunctuation(text: string) {
     "\uff1a": ":",
     "\uff0c": ",",
   };
+  const quoteChars = new Set(['"', "\u201c", "\u201d", "\u301d", "\u301e", "\u3003"]);
+  const closingFollowers = new Set([":", ",", "}", "]"]);
+
+  function isClosingQuote(index: number) {
+    for (let nextIndex = index + 1; nextIndex < text.length; nextIndex += 1) {
+      const nextChar = structuralMap[text[nextIndex]] ?? text[nextIndex];
+
+      if (/\s/.test(nextChar)) {
+        continue;
+      }
+
+      return closingFollowers.has(nextChar);
+    }
+
+    return true;
+  }
 
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
@@ -39,9 +54,20 @@ function normalizeStructuralPunctuation(text: string) {
       continue;
     }
 
-    if (char === '"') {
+    if (quoteChars.has(char)) {
+      if (!inString) {
+        normalized += '"';
+        inString = true;
+        continue;
+      }
+
+      if (isClosingQuote(index)) {
+        normalized += '"';
+        inString = false;
+        continue;
+      }
+
       normalized += char;
-      inString = !inString;
       continue;
     }
 
@@ -161,7 +187,7 @@ export function normalizeJsonInput(text: string) {
 
   const unfenced = stripCodeFence(trimmed);
   const normalized = escapeLiteralLineBreaksInStrings(
-    normalizeStructuralPunctuation(normalizePastedCharacters(unfenced)),
+    normalizeSmartQuotedJson(normalizePastedCharacters(unfenced)),
   ).trim();
 
   return extractFirstJsonObject(normalized);
