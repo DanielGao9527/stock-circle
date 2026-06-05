@@ -1,16 +1,20 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/require-user";
 import { getCommentCountsForTargets } from "@/lib/comments/data";
-import { getPortfolioItemDisplayName, splitPortfolioItems } from "@/lib/portfolio/item-display";
 import {
-  getActivePortfolioSnapshots,
+  formatPortfolioPositionChange,
+  getActionLabel,
+  getOptionSummary,
+  getTopEquityHoldings,
+  splitPortfolioDisplayItems,
+} from "@/lib/portfolio/display";
+import {
+  getLatestActiveSnapshotsForUsers,
   getPortfolioItemsForSnapshots,
   getSnapshotEffectiveDate,
-  getSnapshotTitle,
   groupPortfolioItemsBySnapshot,
   type PortfolioSnapshotRow,
 } from "@/lib/portfolio/data";
-import { formatPositionChange } from "@/lib/portfolio/position-change";
 import { createClient } from "@/lib/supabase/server";
 
 type ProfileIdRow = {
@@ -18,15 +22,14 @@ type ProfileIdRow = {
   display_name: string;
 };
 
-type LatestEntry = {
-  userId: string;
-  snapshot: PortfolioSnapshotRow;
-};
-
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
     dateStyle: "medium",
   }).format(new Date(value));
+}
+
+function getSnapshotDisplayTitle(snapshot: PortfolioSnapshotRow, displayName: string) {
+  return snapshot.title ?? `${displayName} 的最新持仓`;
 }
 
 export default async function PortfoliosPage() {
@@ -36,7 +39,8 @@ export default async function PortfoliosPage() {
   const { data: profileData, error: profileError } = await supabase
     .from("profiles")
     .select("id,display_name")
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .order("display_name");
 
   if (profileError) {
     throw new Error(profileError.message);
@@ -45,24 +49,13 @@ export default async function PortfoliosPage() {
   const profiles = (profileData ?? []) as ProfileIdRow[];
   const profileIds = profiles.map((profile) => profile.id);
   const profileNames = new Map(profiles.map((profile) => [profile.id, profile.display_name]));
-  const latestEntries = (
-    await Promise.all(
-      profileIds.map(async (userId) => {
-        const [snapshot] = await getActivePortfolioSnapshots(supabase, {
-          ownerId: userId,
-          limit: 1,
-        });
-
-        return snapshot
-          ? {
-              userId,
-              snapshot,
-            }
-          : null;
-      }),
-    )
-  )
-    .filter((entry): entry is LatestEntry => entry !== null)
+  const latestSnapshots = await getLatestActiveSnapshotsForUsers(supabase, profileIds);
+  const latestEntries = latestSnapshots
+    .map((snapshot) => {
+      const userId = snapshot.owner_id ?? snapshot.created_by;
+      return userId ? { userId, snapshot } : null;
+    })
+    .filter((entry): entry is { userId: string; snapshot: PortfolioSnapshotRow } => entry !== null)
     .sort((a, b) => new Date(b.snapshot.created_at).getTime() - new Date(a.snapshot.created_at).getTime());
 
   const snapshotIds = latestEntries.map((entry) => entry.snapshot.id);
@@ -77,7 +70,7 @@ export default async function PortfoliosPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">圈内持仓</h1>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
-              查看圈内成员最新一份持仓快照。股票和期权都会显示在这里。
+              浏览圈内成员最新公开持仓。股票和期权分开展示，方便快速查看持仓结构。
             </p>
           </div>
           <Link
@@ -94,107 +87,88 @@ export default async function PortfoliosPage() {
           暂时还没有成员公开最新持仓快照。
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2">
           {latestEntries.map(({ userId, snapshot }) => {
+            const displayName = profileNames.get(userId) ?? `成员 ${userId.slice(0, 8)}`;
             const snapshotItems = itemsBySnapshot.get(snapshot.id) ?? [];
-            const { equityItems, optionItems } = splitPortfolioItems(snapshotItems);
+            const { optionItems } = splitPortfolioDisplayItems(snapshotItems);
+            const topEquityItems = getTopEquityHoldings(snapshotItems, 5);
+            const optionSummary = getOptionSummary(optionItems);
+            const commentCount = commentCountsBySnapshot.get(snapshot.id) ?? 0;
 
             return (
-              <article
+              <Link
                 key={snapshot.id}
-                className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5"
+                href={`/portfolios/${userId}`}
+                className="group block rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/30 md:p-5"
               >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="text-sm text-zinc-500">成员</div>
-                    <h2 className="mt-1 text-xl font-semibold text-zinc-900">
-                      {profileNames.get(userId) ?? `成员 ${userId.slice(0, 8)}`}
-                    </h2>
-                    <div className="mt-2 text-sm text-zinc-600">
-                      {getSnapshotTitle(snapshot)} · {formatDate(getSnapshotEffectiveDate(snapshot))}
+                <article className="space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm text-zinc-500">{displayName}</div>
+                      <h2 className="mt-1 break-words text-lg font-semibold text-zinc-900">
+                        {getSnapshotDisplayTitle(snapshot, displayName)}
+                      </h2>
+                      <p className="mt-2 text-sm text-zinc-500">
+                        最近更新：{formatDate(getSnapshotEffectiveDate(snapshot))}
+                      </p>
                     </div>
+                    <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-600">
+                      评论 {commentCount}
+                    </span>
                   </div>
-                  <Link
-                    href={`/portfolios/${userId}`}
-                    className="inline-flex rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-50"
-                  >
-                    查看详情
-                  </Link>
-                </div>
 
-                {snapshotItems.length === 0 ? (
-                  <p className="mt-4 text-sm text-zinc-600">这份快照还没有持仓明细。</p>
-                ) : (
-                  <>
-                    <div className="mt-4 space-y-3 md:hidden">
-                      {equityItems.map((item) => (
-                        <div key={item.id} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="font-medium text-zinc-900">
-                              {getPortfolioItemDisplayName(item)}
-                            </div>
-                            <span className="rounded-full bg-white px-2 py-0.5 text-xs text-zinc-600">
-                              {item.market ?? "US"}
-                            </span>
-                          </div>
-                          <div className="mt-2 text-sm text-zinc-700">
-                            {formatPositionChange(item.previous_percent, item.position_percent)}
-                          </div>
-                        </div>
-                      ))}
-                      {optionItems.map((item) => (
-                        <div key={item.id} className="rounded-xl border border-violet-100 bg-violet-50 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="font-medium text-zinc-900">
-                              {getPortfolioItemDisplayName(item)}
-                            </div>
-                            <span className="rounded-full bg-white px-2 py-0.5 text-xs text-violet-700">
-                              期权
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                  {snapshot.notes ? (
+                    <p className="break-words text-sm leading-6 text-zinc-600">{snapshot.notes}</p>
+                  ) : null}
 
-                    <div className="mt-4 hidden overflow-x-auto md:block">
-                      <table className="min-w-full text-sm">
-                        <thead className="text-left text-zinc-500">
-                          <tr className="border-b border-zinc-200">
-                            <th className="py-2 pr-4 font-medium">标的</th>
-                            <th className="py-2 pr-4 font-medium">市场</th>
-                            <th className="py-2 pr-4 font-medium">仓位</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {equityItems.map((item) => (
-                            <tr key={item.id} className="border-b border-zinc-100 last:border-0">
-                              <td className="py-3 pr-4 font-medium text-zinc-900">
-                                {getPortfolioItemDisplayName(item)}
-                              </td>
-                              <td className="py-3 pr-4 text-zinc-600">{item.market ?? "US"}</td>
-                              <td className="py-3 pr-4 text-zinc-700">
-                                {formatPositionChange(item.previous_percent, item.position_percent)}
-                              </td>
-                            </tr>
-                          ))}
-                          {optionItems.map((item) => (
-                            <tr key={item.id} className="border-b border-zinc-100 last:border-0">
-                              <td className="py-3 pr-4 font-medium text-zinc-900">
-                                {getPortfolioItemDisplayName(item)}
-                              </td>
-                              <td className="py-3 pr-4 text-zinc-600">{item.market ?? "US"}</td>
-                              <td className="py-3 pr-4 text-violet-700">期权持仓</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-zinc-500">Top 股票持仓</div>
+                    {topEquityItems.length === 0 ? (
+                      <p className="rounded-xl border border-dashed border-zinc-200 p-3 text-sm text-zinc-500">
+                        暂无普通股票 / ETF 持仓。
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {topEquityItems.map((item) => {
+                          const actionLabel = getActionLabel(item.action_type);
+
+                          return (
+                            <div
+                              key={item.id}
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2 text-sm"
+                            >
+                              <div className="min-w-0">
+                                <span className="font-medium text-zinc-900">{item.symbol}</span>
+                                <span className="ml-2 text-xs text-zinc-500">{item.market ?? "US"}</span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 text-right">
+                                <span className="font-medium text-zinc-900">
+                                  {formatPortfolioPositionChange(item)}
+                                </span>
+                                {actionLabel ? (
+                                  <span className="rounded-full bg-white px-2 py-0.5 text-xs text-blue-700">
+                                    {actionLabel}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 pt-3">
+                    <div className="text-sm text-zinc-600">
+                      {optionSummary ?? "无期权持仓"}
                     </div>
-                  </>
-                )}
-                <div className="mt-4 text-xs text-zinc-500">
-                  评论 {commentCountsBySnapshot.get(snapshot.id) ?? 0}
-                </div>
-              </article>
+                    <span className="inline-flex rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition group-hover:bg-blue-700">
+                      查看明细
+                    </span>
+                  </div>
+                </article>
+              </Link>
             );
           })}
         </div>

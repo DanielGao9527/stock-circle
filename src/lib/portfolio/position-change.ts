@@ -1,8 +1,8 @@
 export const actionTypeLabels: Record<string, string> = {
-  new: "新建",
-  increase: "加仓",
+  new: "建仓",
+  increase: "增仓",
   reduce: "减仓",
-  hold: "持有不变",
+  hold: "持有",
   clear: "清仓",
 };
 
