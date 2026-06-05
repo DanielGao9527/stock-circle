@@ -148,9 +148,6 @@ function OptionCard({ item }: { item: HoldingItem }) {
         </div>
       </div>
 
-      <p className="mt-3 text-xs leading-5 text-zinc-500">
-        期权已从普通股票 / ETF 仓位中分离展示；这里不把权利金或名义风险伪装成普通组合仓位。
-      </p>
       {item.margin_note ? (
         <p className="mt-2 text-sm leading-6 text-zinc-600">保证金说明：{item.margin_note}</p>
       ) : null}

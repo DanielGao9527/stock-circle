@@ -63,8 +63,8 @@ type StockDetailPageProps = {
   }>;
 };
 
-const POST_LIMIT = 20;
-const ITEM_HISTORY_LIMIT = 50;
+const POST_LIMIT = 10;
+const ITEM_HISTORY_LIMIT = 10;
 
 function decodeParam(value: string) {
   return decodeURIComponent(value).trim().toUpperCase();

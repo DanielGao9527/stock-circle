@@ -47,7 +47,8 @@ type StockCard = {
   holderCount: number;
 };
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 10;
+const STOCK_POST_SCAN_LIMIT = 100;
 
 function stockKey(market: string, symbol: string) {
   return `${market.toUpperCase()}::${symbol.toUpperCase()}`;
@@ -98,7 +99,9 @@ export default async function StocksPage({ searchParams }: StocksPageProps) {
       .from("posts")
       .select("id")
       .is("deleted_at", null)
-      .neq("status", "hidden"),
+      .neq("status", "hidden")
+      .order("created_at", { ascending: false })
+      .limit(STOCK_POST_SCAN_LIMIT),
   ]);
 
   const profileIds = ((profileData ?? []) as ProfileRow[]).map((profile) => profile.id);

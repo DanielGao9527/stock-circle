@@ -91,6 +91,9 @@ function isMissingTableError(error: { code?: string; message?: string } | null) 
   );
 }
 
+const FEED_SECTION_LIMIT = 10;
+const FEED_ITEM_PREVIEW_LIMIT = 30;
+
 async function getProfiles(
   supabase: Awaited<ReturnType<typeof createClient>>,
   authorIds: string[],
@@ -124,14 +127,14 @@ export default async function Home() {
         .is("deleted_at", null)
         .neq("status", "hidden")
         .order("created_at", { ascending: false })
-        .limit(20),
+        .limit(FEED_SECTION_LIMIT),
       supabase
         .from("portfolio_snapshots")
         .select("id,owner_id,created_by,title,notes,created_at")
         .is("deleted_at", null)
         .neq("status", "hidden")
         .order("created_at", { ascending: false })
-        .limit(20),
+        .limit(FEED_SECTION_LIMIT),
     ]);
 
   if (postError) {
@@ -173,7 +176,7 @@ export default async function Home() {
             .from("portfolio_items")
             .select("snapshot_id,symbol,previous_percent,position_percent")
             .in("snapshot_id", snapshotIds)
-            .limit(60)
+            .limit(FEED_ITEM_PREVIEW_LIMIT)
         : Promise.resolve({ data: [], error: null }),
     ]);
 

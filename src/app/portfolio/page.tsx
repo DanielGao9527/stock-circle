@@ -30,6 +30,8 @@ type PortfolioItemRow = {
   position_percent: number | string;
 };
 
+const PORTFOLIO_SNAPSHOT_LIMIT = 10;
+
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
     dateStyle: "medium",
@@ -117,7 +119,7 @@ export default async function PortfolioPage() {
     .is("deleted_at", null)
     .neq("status", "hidden")
     .order("created_at", { ascending: false })
-    .limit(20);
+    .limit(PORTFOLIO_SNAPSHOT_LIMIT);
 
   if (snapshotError) {
     return (
@@ -217,7 +219,21 @@ export default async function PortfolioPage() {
         )}
       </section>
 
-      <PortfolioSnapshotForm />
+      <details className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <summary className="cursor-pointer text-lg font-semibold text-zinc-900">
+          手动填写持仓快照
+        </summary>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
+          JSON 导入适合批量整理仓位；只想临时补一两条记录时，可以展开这里手动填写。
+        </p>
+        <div className="mt-5">
+          <PortfolioSnapshotForm
+            framed={false}
+            title="手动新建"
+            description="填写必要的股票或期权仓位后保存。"
+          />
+        </div>
+      </details>
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold">历史快照</h2>

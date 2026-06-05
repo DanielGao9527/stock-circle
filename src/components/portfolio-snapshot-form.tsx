@@ -9,6 +9,12 @@ type PortfolioRow = {
   asset_type: "stock" | "option";
 };
 
+type PortfolioSnapshotFormProps = {
+  framed?: boolean;
+  title?: string;
+  description?: string;
+};
+
 const initialState = {
   error: undefined,
 };
@@ -27,7 +33,11 @@ function SubmitButton() {
   );
 }
 
-export function PortfolioSnapshotForm() {
+export function PortfolioSnapshotForm({
+  framed = true,
+  title = "新建持仓快照",
+  description = "记录当前组合配置。股票和期权都可以放在同一份快照里，方便回看仓位变化。",
+}: PortfolioSnapshotFormProps = {}) {
   const nextRowId = useRef(2);
   const [rows, setRows] = useState<PortfolioRow[]>([{ id: 1, asset_type: "stock" }]);
   const [state, formAction] = useActionState(createPortfolioSnapshot, initialState);
@@ -53,13 +63,15 @@ export function PortfolioSnapshotForm() {
   return (
     <form
       action={formAction}
-      className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
+      className={
+        framed ? "space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm" : "space-y-5"
+      }
     >
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">新建持仓快照</h2>
-        <p className="mt-2 text-sm leading-6 text-zinc-600">
-          记录当前组合配置。股票和期权都可以放在同一份快照里，方便回看仓位变化。
-        </p>
+        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+        {description ? (
+          <p className="mt-2 text-sm leading-6 text-zinc-600">{description}</p>
+        ) : null}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

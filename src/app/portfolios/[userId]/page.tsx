@@ -24,6 +24,8 @@ type PortfolioUserDetailPageProps = {
   }>;
 };
 
+const MEMBER_SNAPSHOT_LIMIT = 10;
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
     dateStyle: "medium",
@@ -41,7 +43,7 @@ export default async function PortfolioUserDetailPage({ params }: PortfolioUserD
 
   const snapshots = await getActivePortfolioSnapshots(supabase, {
     ownerId: userId,
-    limit: 20,
+    limit: MEMBER_SNAPSHOT_LIMIT,
   });
   const profileMap = await getPortfolioProfileMap(supabase, [userId]);
 
@@ -50,7 +52,7 @@ export default async function PortfolioUserDetailPage({ params }: PortfolioUserD
   }
 
   const latestSnapshot = snapshots[0] ?? null;
-  const historicalSnapshots = snapshots.slice(1, 20);
+  const historicalSnapshots = snapshots.slice(1);
   const snapshotIds = snapshots.map((snapshot) => snapshot.id);
   const commentCountsBySnapshot = await getCommentCountsForTargets(supabase, "snapshot", snapshotIds);
   const latestItems = latestSnapshot

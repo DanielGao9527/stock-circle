@@ -23,6 +23,8 @@ type StockRow = {
   symbol: string;
 };
 
+const MY_POSTS_LIMIT = 10;
+
 function getPreview(content: string) {
   return content.length > 90 ? `${content.slice(0, 90)}...` : content;
 }
@@ -45,7 +47,7 @@ export default async function MyPostsPage() {
     .is("deleted_at", null)
     .neq("status", "hidden")
     .order("created_at", { ascending: false })
-    .limit(20);
+    .limit(MY_POSTS_LIMIT);
 
   if (postError) {
     return (

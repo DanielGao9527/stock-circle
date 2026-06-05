@@ -12,7 +12,7 @@ import {
 } from "@/lib/posts/types";
 import { normalizeUrl, normalizeUrlWithMeta } from "@/lib/url/normalize-url";
 
-type QuickMode = "paste" | "ai" | "json" | "manual";
+type QuickMode = "paste" | "json" | "manual";
 
 type Draft = {
   title: string;
@@ -45,7 +45,6 @@ const initialState: QuickPostActionState = {};
 
 const modeTabs: Array<{ id: QuickMode; label: string; disabled?: boolean }> = [
   { id: "paste", label: "快速粘贴" },
-  { id: "ai", label: "AI 解析", disabled: true },
   { id: "json", label: "AI JSON 导入" },
   { id: "manual", label: "高级手动发布" },
 ];
@@ -64,18 +63,33 @@ const emptyDraft: Draft = {
   tags: [],
 };
 
-const aiJsonPromptTemplate = `请把下面的推文、文章、聊天记录或股票相关文字整理成 StockCircle JSON。
-要求：
-- 只输出 JSON，不要输出解释文字。
-- 不要给投资建议，不要判断买入/卖出，不要推断情绪或投资方向。
-- 如果无法确定字段，请留空字符串、空数组或 null。
-- postType 只能是 idea、link、news、review、other 之一。
-- symbols 使用对象数组，每个对象包含 symbol 和 market。
+const aiJsonPromptTemplate = `你是 StockCircle 的 JSON 整理助手。请把我接下来粘贴的截图内容、OCR 文字、推文、文章、聊天记录或股票相关笔记，整理成可以直接粘贴进 StockCircle 的 JSON。
+
+使用方式：
+1. 我可能会在这段指令后面粘贴截图、图片识别文字、推文链接、网页摘录或一段杂乱笔记。
+2. 你只需要根据原始内容抽取事实信息，生成下方格式的 JSON。
+3. 只输出 JSON，不要输出解释、Markdown 代码块、前后说明或多余文字。
+
+重要规则：
+- 不要给投资建议，不要判断买入/卖出，不要编造确定性结论。
+- 不要为了补全字段而发明原文没有的信息；无法确定就填空字符串、空数组或 null。
+- title 用中文概括核心主题，尽量短。
+- summary 用中文总结原文重点。
+- content 保留主要逻辑、数据、风险和关键原文信息，可以适度整理成中文笔记。
+- content 不要只做一句话复述；请把原文中的因果链、关键数字、时间点、公司/业务线、风险点整理清楚。
+- 如果原文来自截图或聊天记录，去掉寒暄、重复语气词、无意义口水话，只保留对投资研究有用的信息。
+- 如果原文有多个相关标的，说明它们各自和主题的关系，不要把所有股票混成一句泛泛总结。
+- symbols 必须是对象数组，每个对象包含 symbol 和 market；美股 market 用 "US"。
+- postType 只能是 "idea"、"link"、"news"、"review"、"other" 之一。
 - sourceUrl 必须是纯 URL 字符串。
 - sourceUrl 不允许使用 Markdown 链接格式，不要输出 [text](url)。
 - sourceUrl 不允许混入换行、股票代码或其他文字。
-- 正确格式只能是: "sourceUrl": "https://x.com/xiaomustock/status/2061478429178896831"
-- referencePrice 必须保持数字类型，例如 15.8117。
+- 如果没有明确来源链接，sourceUrl 填 ""。
+- 正确 sourceUrl 格式只能是: "sourceUrl": "https://x.com/xiaomustock/status/2061478429178896831"
+- referencePrice 必须保持数字类型，例如 15.8117；如果没有明确价格，填 null。
+- referenceCurrency 默认用 "USD"，除非原文明确是其他货币。
+- tags 用字符串数组，最多 8 个，提取主题词即可。
+
 JSON 格式：
 {
   "type": "post",
@@ -95,7 +109,8 @@ JSON 格式：
   "tags": []
 }
 
-原始内容：[在这里粘贴原文]`;
+原始内容粘贴在这里：
+[把截图、OCR 文字、推文、文章或聊天记录粘贴到这里]`;
 
 function toText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -299,7 +314,7 @@ function DraftPreview({
 
       {draft.tags.length > 0 ? (
         <div className="rounded-xl border border-zinc-200 bg-white p-3">
-          <div className="text-sm font-medium text-zinc-700">标签预览（暂不保存）</div>
+          <div className="text-sm font-medium text-zinc-700">标签</div>
           <div className="mt-2 flex flex-wrap gap-2">
             {draft.tags.map((tag) => (
               <span
@@ -432,21 +447,6 @@ function QuickPasteMode({
   );
 }
 
-function AiComingSoonMode() {
-  return (
-    <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-5 shadow-sm">
-      <div className="inline-flex rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600">
-        Coming Soon
-      </div>
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight">AI 解析</h1>
-      <p className="mt-2 text-sm leading-6 text-zinc-600">
-        未来可以直接粘贴推文、文章、聊天记录或持仓文字，系统会自动调用 AI 生成结构化草稿。
-      </p>
-      <p className="mt-3 text-sm text-zinc-500">当前版本不会调用任何 AI API。</p>
-    </div>
-  );
-}
-
 function symbolsFromJson(value: unknown) {
   const symbolMarkets: Array<{ symbol: string; market: string }> = [];
 
@@ -517,7 +517,7 @@ function AiJsonImportMode({
   async function handleCopyPrompt() {
     try {
       await navigator.clipboard.writeText(aiJsonPromptTemplate);
-      setCopyMessage("已复制 prompt 模板。");
+      setCopyMessage("已复制 AI 指令。");
     } catch {
       setCopyMessage("复制失败，请手动选择模板文本。");
     }
@@ -587,27 +587,25 @@ function AiJsonImportMode({
     <div className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">AI JSON 导入</h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-600">
-          粘贴外部 AI 生成的 JSON，本页只在本地解析并生成可编辑草稿。
-        </p>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">粘贴 AI 生成的 JSON，生成可编辑草稿。</p>
       </div>
 
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
         <h2 className="text-base font-semibold">如何使用外部 AI 生成 JSON</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
-          你可以把推文、文章、聊天记录或股票相关文字发给 ChatGPT、Claude、DeepSeek
-          等外部 AI 工具，让它按 StockCircle 格式输出 JSON。普通用户不需要手写 JSON。
+          先复制下面这段 AI 指令，然后在 ChatGPT、Claude、DeepSeek 等外部工具里粘贴，
+          再把截图、推文、文章或聊天记录贴在末尾。AI 返回 JSON 后，再复制回来解析。
         </p>
 
         <div className="mt-3">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="text-sm font-medium">Prompt 模板</span>
+            <span className="text-sm font-medium">AI 指令</span>
             <button
               type="button"
               onClick={handleCopyPrompt}
               className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
             >
-              复制模板
+              复制 AI 指令
             </button>
           </div>
           <textarea
@@ -786,7 +784,7 @@ export function QuickPostForm() {
           用最少步骤保存股票相关想法、链接、新闻、复盘或短笔记。
         </p>
 
-        <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
           {modeTabs.map((tab) => (
             <button
               key={tab.id}
@@ -807,17 +805,9 @@ export function QuickPostForm() {
             </button>
           ))}
         </div>
-
-        <div className="mt-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-3">
-          <div className="text-sm font-medium text-zinc-700">AI 解析 · Coming Soon</div>
-          <p className="mt-1 text-sm leading-6 text-zinc-600">
-            未来可以直接粘贴推文、文章、聊天记录或持仓文字，系统会自动调用 AI 生成结构化草稿。当前版本不会调用任何 AI API。
-          </p>
-        </div>
       </div>
 
       {activeMode === "paste" ? <QuickPasteMode onDraft={handleDraft} /> : null}
-      {activeMode === "ai" ? <AiComingSoonMode /> : null}
       {activeMode === "json" ? <AiJsonImportMode onDraft={handleDraft} /> : null}
       {activeMode === "manual" ? (
         <AdvancedManualMode actionState={state} formAction={formAction} />

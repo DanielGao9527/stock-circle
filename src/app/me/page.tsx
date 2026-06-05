@@ -33,10 +33,6 @@ export default async function MePage() {
       <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
         <dl className="space-y-4 text-sm">
           <div>
-            <dt className="text-zinc-500">用户 ID</dt>
-            <dd className="mt-1 break-all text-zinc-900">{user.id}</dd>
-          </div>
-          <div>
             <dt className="text-zinc-500">邮箱</dt>
             <dd className="mt-1 break-all text-zinc-900">{user.email ?? "未提供"}</dd>
           </div>
@@ -75,7 +71,7 @@ export default async function MePage() {
       <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
         <h2 className="text-lg font-semibold">每日邮件摘要</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
-          MVP 版本固定在美股开盘前 10 分钟发送摘要，不提供自定义时间。
+          开盘前接收一封圈内动态摘要，快速了解最新帖子、持仓更新和回复。
         </p>
 
         <div className="mt-4">

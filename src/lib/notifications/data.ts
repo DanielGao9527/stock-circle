@@ -40,6 +40,8 @@ type SnapshotTargetRow = {
   title: string | null;
 };
 
+const NOTIFICATIONS_LIMIT = 10;
+
 function getPreview(value: string) {
   return value.length > 60 ? `${value.slice(0, 60)}...` : value;
 }
@@ -76,7 +78,7 @@ export async function getNotificationsForUser(
     )
     .eq("recipient_id", userId)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(NOTIFICATIONS_LIMIT);
 
   if (error) {
     throw new Error(error.message);

@@ -86,10 +86,10 @@ const initialState: PortfolioSnapshotActionState = {};
 
 const actionTypeOptions = [
   { value: "", label: "自动推断" },
-  { value: "new", label: "新建" },
-  { value: "increase", label: "加仓" },
+  { value: "new", label: "建仓" },
+  { value: "increase", label: "增仓" },
   { value: "reduce", label: "减仓" },
-  { value: "hold", label: "持有不变" },
+  { value: "hold", label: "持有" },
   { value: "clear", label: "清仓" },
 ];
 
@@ -129,7 +129,7 @@ const exampleJson = `{
 const portfolioImportExampleJson = `{
   "type": "portfolio_snapshot",
   "title": "2026-06-03 持仓调整",
-  "note": "根据新一轮仓位计划调整",
+  "note": "AI 基建仓位上调，MU 增仓；NVDA call 单独记录为期权风险。",
   "equityPositions": [
     {
       "symbol": "MU",
@@ -164,6 +164,56 @@ const portfolioImportExampleJson = `{
     }
   ]
 }`;
+
+const portfolioAiPromptTemplate = `你是 StockCircle 的持仓 JSON 整理助手。请把我接下来粘贴的券商截图、OCR 文字、持仓表格、调仓记录或聊天笔记，整理成可以直接粘贴进 StockCircle 的 portfolio_snapshot JSON。
+
+使用方式：
+1. 我可能会在这段指令后面粘贴截图、图片识别文字、券商持仓表格、交易记录或手写仓位笔记。
+2. 你只需要根据原始内容抽取事实字段，生成下方格式的 JSON。
+3. 只输出 JSON，不要输出解释、Markdown 代码块、前后说明或多余文字。
+
+重要规则：
+- 不要计算收益率、回报、盈亏或表现。
+- 不要给投资建议，不要判断买入/卖出是否正确。
+- 不要发明原文没有的数据；无法确定的字段填空字符串 "" 或 null。
+- 如果原始内容来自多个账户、多个券商、主账户/副账户、现金账户/保证金账户，默认合并为一个整体组合视角。
+- 同一 symbol + market 的普通股票/ETF 默认合并成一条 equityPositions 记录，positionPercent 使用合并后的组合占比。
+- 同一 underlyingSymbol、optionType、side、strikePrice、expirationDate 的期权默认合并成一条 optionPositions 记录。
+- 不要在 note 里写“这是用户两个账户的组合”“来自两个账户”“账户层次”这类没有分析价值的话，除非账户差异本身影响风险。
+- 不要输出股数、持股数量、账户名称、账号编号等 StockCircle 当前不需要的字段；有股数但没有仓位百分比时，不要硬塞到 note。
+- 普通股票、ETF、正股仓位放进 equityPositions。
+- 期权仓位放进 optionPositions，不要混入 equityPositions。
+- 不要把期权 premium 当作普通股票仓位百分比。
+- positionPercent 表示组合仓位百分比，必须是数字；如果原文没有，请尽量留空或根据原文明确仓位填写。
+- previousPercent 只有原文明确提供上一仓位时才填写；不确定就留空。
+- currentPrice 表示当前价或参考价，必须是数字；没有就留空。
+- costPrice 表示成本价，必须是数字；没有就留空。
+- actionType 只能是 "new"、"increase"、"reduce"、"hold"、"clear" 或空字符串。
+- 期权必须尽量填写 underlyingSymbol、optionType、side、strikePrice、expirationDate。
+- optionType 只能是 "call" 或 "put"。
+- side 只能是 "buy"、"sell"、"long"、"short" 或空字符串。
+- 日期使用 YYYY-MM-DD。
+- 美股 market 用 "US"，currency 默认 "USD"。
+
+note 写法：
+- note 应该写这次持仓快照真正有用的总结，例如组合主线、明显增减仓、风险暴露、期权和正股的关系。
+- note 不要写空泛描述，例如“这是用户的持仓组合”“这是两个账户的合并视图”“根据截图整理持仓”。
+- note 不要逐条重复每个 symbol 的股数或价格；这些放在各 position 字段里。
+- 如果没有可总结的调仓逻辑，note 可以留空字符串。
+
+actionType 判断：
+- 新出现且 previousPercent 为空或 0，可用 "new"。
+- positionPercent 大于 previousPercent，可用 "increase"。
+- positionPercent 小于 previousPercent 且大于 0，可用 "reduce"。
+- 仓位基本不变，可用 "hold"。
+- 当前仓位为 0 或明确卖光，可用 "clear"。
+- 无法判断就填空字符串，不要硬猜。
+
+JSON 格式：
+${portfolioImportExampleJson}
+
+原始内容粘贴在这里：
+[把券商截图、OCR 文字、持仓表格、交易记录或聊天笔记粘贴到这里]`;
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -515,6 +565,12 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">JSON 模板</h2>
           <div className="flex flex-wrap gap-2">
+            <CopyTextButton
+              text={portfolioAiPromptTemplate}
+              idleLabel="复制 AI 指令"
+              successLabel="指令已复制"
+              className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 transition hover:bg-blue-100"
+            />
             <CopyTextButton
               text={portfolioImportExampleJson}
               idleLabel="复制模板"
