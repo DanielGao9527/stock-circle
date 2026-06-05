@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { PortfolioJsonImport } from "@/components/portfolio-json-import";
 import { PortfolioSnapshotDeleteButton } from "@/components/portfolio-snapshot-delete-button";
-import { PortfolioSnapshotForm } from "@/components/portfolio-snapshot-form";
 import { requireUser } from "@/lib/auth/require-user";
 import { getCommentCountsForTargets } from "@/lib/comments/data";
 import { getPortfolioItemDisplayName, splitPortfolioItems } from "@/lib/portfolio/item-display";
@@ -169,7 +168,7 @@ export default async function PortfolioPage() {
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">持仓</h1>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
-          手动记录组合仓位快照，也支持用 JSON 模板快速导入。现在同一份快照里可以同时记录股票和期权。
+          用 JSON 模板整理并发布组合仓位快照。同一份快照里可以同时记录股票和期权。
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
@@ -218,22 +217,6 @@ export default async function PortfolioPage() {
           </div>
         )}
       </section>
-
-      <details className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <summary className="cursor-pointer text-lg font-semibold text-zinc-900">
-          手动填写持仓快照
-        </summary>
-        <p className="mt-2 text-sm leading-6 text-zinc-600">
-          JSON 导入适合批量整理仓位；只想临时补一两条记录时，可以展开这里手动填写。
-        </p>
-        <div className="mt-5">
-          <PortfolioSnapshotForm
-            framed={false}
-            title="手动新建"
-            description="填写必要的股票或期权仓位后保存。"
-          />
-        </div>
-      </details>
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold">历史快照</h2>

@@ -126,6 +126,21 @@ export async function getCommentCountsForTargets(
     return new Map<string, number>();
   }
 
+  const { data: rpcData, error: rpcError } = await supabase.rpc("get_comment_counts_for_targets", {
+    p_target_type: targetType,
+    p_target_ids: targetIds,
+  });
+
+  if (!rpcError && rpcData) {
+    return ((rpcData ?? []) as { target_id: string; comment_count: number | string }[]).reduce(
+      (map, row) => {
+        map.set(row.target_id, Number(row.comment_count));
+        return map;
+      },
+      new Map<string, number>(),
+    );
+  }
+
   const { data, error } = await supabase
     .from("comments")
     .select("target_id")
