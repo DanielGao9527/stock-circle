@@ -93,39 +93,6 @@ const actionTypeOptions = [
   { value: "clear", label: "清仓" },
 ];
 
-const exampleJson = `{
-  "type": "portfolio_snapshot",
-  "title": "2026-06-03 持仓调整",
-  "note": "根据新一轮仓位计划调整",
-  "positions": [
-    {
-      "symbol": "MU",
-      "market": "US",
-      "positionPercent": 30,
-      "actionType": "increase",
-      "costPrice": 85.2,
-      "currentPrice": 112.5,
-      "currency": "USD",
-      "changeReason": "HBM 逻辑继续强化",
-      "note": ""
-    },
-    {
-      "symbol": "NVDA",
-      "market": "US",
-      "assetType": "option",
-      "optionType": "call",
-      "strikePrice": 120,
-      "expirationDate": "2026-12-18",
-      "positionPercent": 8,
-      "costPrice": 9.8,
-      "currentPrice": 12.1,
-      "currency": "USD",
-      "changeReason": "用 LEAPS 放大上行弹性",
-      "note": ""
-    }
-  ]
-}`;
-
 const portfolioImportExampleJson = `{
   "type": "portfolio_snapshot",
   "title": "2026-06-03 持仓调整",
@@ -167,10 +134,17 @@ const portfolioImportExampleJson = `{
 
 const portfolioAiPromptTemplate = `你是 StockCircle 的持仓 JSON 整理助手。请把我接下来粘贴的券商截图、OCR 文字、持仓表格、调仓记录或聊天笔记，整理成可以直接粘贴进 StockCircle 的 portfolio_snapshot JSON。
 
-使用方式：
-1. 我可能会在这段指令后面粘贴截图、图片识别文字、券商持仓表格、交易记录或手写仓位笔记。
-2. 你只需要根据原始内容抽取事实字段，生成下方格式的 JSON。
-3. 只输出 JSON，不要输出解释、Markdown 代码块、前后说明或多余文字。
+你要完成的事情：
+1. 识别普通股票/ETF、期权、现金或其他无效行。
+2. 多账户、多券商、主账户/副账户、现金账户/保证金账户默认合并成一个整体组合。
+3. 同一只股票默认合并；同一条期权合约默认合并。
+4. 输出一份可以直接复制进 StockCircle 的纯 JSON。
+
+输出要求：
+- 只输出 JSON。
+- 不要输出 Markdown 代码块。
+- 不要输出解释、步骤、免责声明、前后说明。
+- 不要把这段指令原文复制进结果里。
 
 重要规则：
 - 不要计算收益率、回报、盈亏或表现。
@@ -184,7 +158,11 @@ const portfolioAiPromptTemplate = `你是 StockCircle 的持仓 JSON 整理助�
 - 普通股票、ETF、正股仓位放进 equityPositions。
 - 期权仓位放进 optionPositions，不要混入 equityPositions。
 - 不要把期权 premium 当作普通股票仓位百分比。
-- positionPercent 表示组合仓位百分比，必须是数字；如果原文没有，请尽量留空或根据原文明确仓位填写。
+- positionPercent 表示合并后组合仓位百分比，必须是数字。
+- 如果原文直接给了仓位百分比，优先使用原文百分比。
+- 如果原文只有市值/Market Value 和总资产/Net Liq/Total Value，可以用 市值 ÷ 总资产 × 100 计算 positionPercent，保留 2 位以内小数。
+- 如果多个账户各自有市值和总资产，请先合并同一证券市值，再除以所有账户总资产。
+- 如果只有股数、张数、成本价、现价，但没有总资产或仓位百分比，不要硬算仓位，positionPercent 留空或 null。
 - previousPercent 只有原文明确提供上一仓位时才填写；不确定就留空。
 - currentPrice 表示当前价或参考价，必须是数字；没有就留空。
 - costPrice 表示成本价，必须是数字；没有就留空。
@@ -196,9 +174,11 @@ const portfolioAiPromptTemplate = `你是 StockCircle 的持仓 JSON 整理助�
 - 美股 market 用 "US"，currency 默认 "USD"。
 
 note 写法：
-- note 应该写这次持仓快照真正有用的总结，例如组合主线、明显增减仓、风险暴露、期权和正股的关系。
+- note 应该写这次持仓快照真正有用的总结，例如组合主线、仓位集中点、明显增减仓、现金/杠杆/期权风险暴露、期权和正股的关系。
 - note 不要写空泛描述，例如“这是用户的持仓组合”“这是两个账户的合并视图”“根据截图整理持仓”。
-- note 不要逐条重复每个 symbol 的股数或价格；这些放在各 position 字段里。
+- note 不要逐条重复每个 symbol 的股数、张数或价格；这些不是当前系统需要的重点。
+- note 可以写成一句话，例如：“AI 基建仓位仍是核心，半导体正股为主，少量 call 提供上行弹性。”
+- note 可以写成一句话，例如：“组合集中在 NVDA、AVGO、MU，期权仓位单独记录为高波动风险。”
 - 如果没有可总结的调仓逻辑，note 可以留空字符串。
 
 actionType 判断：
@@ -350,7 +330,6 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
   }
 
   function fillExampleTemplate() {
-    void exampleJson;
     setJsonText(portfolioImportExampleJson);
     setDraft(null);
     setParseError("");
@@ -563,7 +542,7 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
 
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">JSON 模板</h2>
+          <h2 className="text-lg font-semibold">AI 指令</h2>
           <div className="flex flex-wrap gap-2">
             <CopyTextButton
               text={portfolioAiPromptTemplate}
@@ -571,10 +550,27 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
               successLabel="指令已复制"
               className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 transition hover:bg-blue-100"
             />
+          </div>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
+          先复制这段完整指令给 AI，再把券商截图、OCR、持仓表或调仓记录粘在指令最后。AI 应该只返回一段可导入的纯
+          JSON。
+        </p>
+        <textarea
+          readOnly
+          value={portfolioAiPromptTemplate}
+          rows={16}
+          className="mt-3 w-full resize-y rounded-2xl border border-zinc-200 bg-zinc-50 p-4 font-mono text-sm leading-6 text-zinc-800 outline-none"
+        />
+        <details className="mt-3 rounded-xl border border-dashed border-zinc-300 bg-white p-3">
+          <summary className="cursor-pointer text-sm font-medium text-zinc-700">
+            查看 JSON 字段示例
+          </summary>
+          <div className="mt-3 flex flex-wrap gap-2">
             <CopyTextButton
               text={portfolioImportExampleJson}
-              idleLabel="复制模板"
-              successLabel="模板已复制"
+              idleLabel="复制示例 JSON"
+              successLabel="示例已复制"
               className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
             />
             <button
@@ -582,18 +578,13 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
               onClick={fillExampleTemplate}
               className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-50"
             >
-              填入模板
+              填入示例 JSON
             </button>
           </div>
-        </div>
-        <p className="mt-2 text-sm leading-6 text-zinc-600">
-          默认不要求 `previousPercent`。如果没提供，系统会尝试用你最近一次持仓快照里的同股票仓位自动回填。现价字段优先读取
-          `currentPrice`，旧的 `referencePrice` 也兼容。期权持仓请用
-          {" `assetType: \"option\"` "}并补上 `optionType`、`strikePrice`、`expirationDate`。
-        </p>
-        <pre className="mt-3 overflow-x-auto rounded-2xl border border-zinc-200 bg-zinc-50 p-4 font-mono text-sm leading-6 text-zinc-800">
-          {portfolioImportExampleJson}
-        </pre>
+          <pre className="mt-3 overflow-x-auto rounded-xl border border-zinc-200 bg-zinc-50 p-4 font-mono text-sm leading-6 text-zinc-800">
+            {portfolioImportExampleJson}
+          </pre>
+        </details>
       </div>
 
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
@@ -602,7 +593,7 @@ export function PortfolioJsonImport({ latestPositions }: PortfolioJsonImportProp
           value={jsonText}
           onChange={(event) => setJsonText(event.target.value)}
           rows={14}
-          placeholder={portfolioImportExampleJson}
+          placeholder="把 AI 输出的纯 JSON 粘贴到这里，然后点击解析为草稿。"
           className="mt-3 w-full resize-y rounded-xl border border-zinc-300 px-3 py-3 font-mono text-sm leading-6 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         />
         <p className="mt-2 text-xs leading-5 text-zinc-500">
