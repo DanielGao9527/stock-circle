@@ -138,7 +138,7 @@ Deliverables:
 ## Daily Email Digest
 
 - Daily email digest is implemented with Resend.
-- Delivery is triggered by Vercel Cron.
+- Delivery is triggered daily by Vercel Cron.
 - The schedule targets roughly 10 minutes before the US market open.
 - The digest contains circle activity summaries only.
 - No AI analysis is included in this email.
